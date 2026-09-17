@@ -14,7 +14,7 @@ CekLabel is a **Flutter**-based mobile application that helps users read, transl
 
 * **Framework:** [Flutter](https://flutter.dev/) (Dart)
 * **Text Recognition / OCR:** [Google ML Kit](https://developers.google.com/ml-kit) (planned)
-* **State Management:** Provider / Riverpod (adjust based on your choice)
+* **State Management:** Provider / Riverpod
 
 ## Getting Started
 
@@ -24,7 +24,7 @@ This section guides you on how to run the project on your local machine.
 Ensure you have the following software installed on your computer:
 * [Flutter SDK](https://docs.flutter.dev/get-started/install)
 * Android Studio or VS Code
-* Android Emulator / iOS Simulator (or a physical device connected via USB)
+* Android Emulator / iOS Simulator
 
 ### Installation Steps
 
