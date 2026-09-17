@@ -1,33 +1,33 @@
 # CekLabel (Food Ingredient Translator)
 
-CekLabel adalah aplikasi *mobile* berbasis **Flutter** yang membantu pengguna membaca, menerjemahkan, dan memahami daftar komposisi pada kemasan makanan. Membantu Anda menghindari alergen, mengenali gula tersembunyi, dan membuat keputusan konsumsi yang lebih sehat.
+CekLabel is a **Flutter**-based mobile application that helps users read, translate, and understand ingredient lists on food packaging. It helps you avoid allergens, spot hidden sugars, and make healthier consumption choices.
 
-## Fitur Utama
+## Key Features
 
-* **Pemindai Cerdas (OCR):** Cukup foto label komposisi makanan, aplikasi akan otomatis mengubahnya menjadi teks menggunakan teknologi *Text Recognition*.
-* **Peringatan Alergen:** Berikan peringatan instan jika terdeteksi bahan yang berpotensi memicu alergi (seperti kacang, gluten, susu, dll).
-* **Detektif Gula Tersembunyi:** Mengidentifikasi nama-nama samaran gula kimiawi (seperti *maltodekstrin*, *sirup jagung fruktosa tinggi*, dll).
-* **Kamus Nutrisi Bahasa Awam:** Menerjemahkan istilah kimia atau kode pengawet (misal: E621) ke dalam bahasa sehari-hari yang mudah dipahami.
-* **Lintas Platform:** Berjalan mulus di perangkat Android dan iOS.
+* **Smart Scanner (OCR):** Simply snap a picture of the food ingredient label, and the app will automatically convert it into text using Text Recognition technology.
+* **Allergen Alerts:** Get instant warnings if potential allergens (such as nuts, gluten, dairy, etc.) are detected.
+* **Hidden Sugar Detective:** Identifies chemical aliases for sugar (like maltodextrin, high-fructose corn syrup, etc.).
+* **Layman's Nutrition Dictionary:** Translates complex chemical terms or preservative codes (e.g., E621) into easy-to-understand everyday language.
+* **Cross-Platform:** Runs smoothly on both Android and iOS devices.
 
-## Teknologi yang Digunakan
+## Technologies Used
 
 * **Framework:** [Flutter](https://flutter.dev/) (Dart)
-* **Text Recognition / OCR:** [Google ML Kit](https://developers.google.com/ml-kit) (direncanakan)
-* **State Management:** Provider / Riverpod (sesuaikan dengan yang Anda pakai)
+* **Text Recognition / OCR:** [Google ML Kit](https://developers.google.com/ml-kit) (planned)
+* **State Management:** Provider / Riverpod (adjust based on your choice)
 
-## Memulai Proyek (Getting Started)
+## Getting Started
 
-Bagian ini memandu Anda untuk menjalankan proyek CekLabel di komputer lokal Anda.
+This section guides you on how to run the project on your local machine.
 
-### Prasyarat
-Pastikan Anda sudah menginstal perangkat lunak berikut di komputer Anda:
+### Prerequisites
+Ensure you have the following software installed on your computer:
 * [Flutter SDK](https://docs.flutter.dev/get-started/install)
-* Android Studio atau VS Code
-* Emulator Android / iOS Simulator (atau perangkat fisik yang dihubungkan dengan kabel data)
+* Android Studio or VS Code
+* Android Emulator / iOS Simulator (or a physical device connected via USB)
 
-### Langkah-langkah Instalasi
+### Installation Steps
 
-1. **Clone repositori ini**
+1. **Clone this repository**
    ```bash
-   git clone [https://github.com/username-anda/ceklabel.git](https://github.com/username-anda/ceklabel.git)
+   git clone [https://github.com/your-username/ceklabel.git](https://github.com/your-username/ceklabel.git)
