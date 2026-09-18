@@ -1,33 +1,35 @@
-# CekLabel (Food Ingredient Translator)
+# CekLabel
 
-CekLabel is a **Flutter**-based mobile application that helps users read, translate, and understand ingredient lists on food packaging. It helps you avoid allergens, spot hidden sugars, and make healthier consumption choices.
+## 1. Deskripsi Masalah
+Banyak konsumen, terutama mereka yang memiliki alergi, diet khusus, atau orang tua yang peduli dengan kesehatan anak, kesulitan memahami label komposisi makanan. Istilah kimia yang rumit (seperti *maltodekstrin*, *tartrazin*, atau E621) dan nama samaran untuk gula atau alergen sering kali membuat konsumen tidak sadar mengonsumsi bahan yang sebenarnya ingin mereka hindari. Membaca dan mencari tahu arti setiap bahan secara manual saat berbelanja sangat memakan waktu.
 
-## Key Features
+## 2. Profil Target Pengguna
+* **Individu dengan Alergi/Intoleransi:** Orang yang harus menghindari bahan spesifik (misal: gluten, kacang, susu).
+* **Konsumen Sadar Kesehatan:** Orang yang sedang menjalani diet tertentu (mengurangi gula, menghindari pengawet buatan).
+* **Orang Tua:** Ibu atau ayah yang ingin memastikan jajanan atau bahan makanan yang dibeli aman untuk anak-anak mereka.
 
-* **Smart Scanner (OCR):** Simply snap a picture of the food ingredient label, and the app will automatically convert it into text using Text Recognition technology.
-* **Allergen Alerts:** Get instant warnings if potential allergens (such as nuts, gluten, dairy, etc.) are detected.
-* **Hidden Sugar Detective:** Identifies chemical aliases for sugar (like maltodextrin, high-fructose corn syrup, etc.).
-* **Layman's Nutrition Dictionary:** Translates complex chemical terms or preservative codes (e.g., E621) into easy-to-understand everyday language.
-* **Cross-Platform:** Runs smoothly on both Android and iOS devices.
+## 3. Manfaat Aplikasi
+* **Efisiensi Waktu:** Memungkinkan pengguna mengenali bahan berbahaya atau tidak sehat dalam hitungan detik saat berbelanja.
+* **Pencegahan Risiko:** Membantu mencegah reaksi alergi yang tidak diinginkan karena ketidaktahuan membaca label.
+* **Edukasi Praktis:** Memberikan pemahaman instan tentang apa arti sebenarnya dari kode kimia pada kemasan makanan menggunakan bahasa awam.
 
-## Technologies Used
+## 4. Daftar Fitur Inti (Skala 12 Pertemuan)
+Mengingat batas waktu pengembangan selama 12 pertemuan, fokus pengerjaan akan dibatasi pada *Minimum Viable Product* (MVP):
+1. **Kamera Pemindai Teks (OCR):** Fitur untuk mengambil foto label komposisi dan mengekstrak teksnya menggunakan Google ML Kit.
+2. **Sistem Deteksi Kata Kunci:** Logika pencocokan teks hasil pindaian dengan basis data lokal.
+3. **Peringatan Alergen & Gula:** Indikator visual (warna merah/kuning) jika terdeteksi bahan penyebab alergi atau gula tersembunyi.
+4. **Kamus Mini Komposisi:** Halaman pencarian manual bagi pengguna yang ingin mengetik dan mencari arti bahan tertentu tanpa memindai.
+5. **Pengaturan Preferensi Pengguna (Lokal):** Pengguna dapat memilih alergen apa yang ingin diwaspadai (misal: centang "Kacang" dan "Susu"), disimpan secara lokal (tanpa server).
 
-* **Framework:** [Flutter](https://flutter.dev/) (Dart)
-* **Text Recognition / OCR:** [Google ML Kit](https://developers.google.com/ml-kit) (planned)
-* **State Management:** Provider / Riverpod
+## 5. Fitur yang Tidak Dikerjakan (Out of Scope)
+Untuk menjaga agar proyek realistis selesai tepat waktu, fitur berikut **tidak** akan dikerjakan pada fase ini:
+* **Pemindai Barcode Produk:** Aplikasi murni berfokus membaca teks komposisi (OCR), bukan mencari database produk dari *barcode*.
+* **Integrasi Database Online / API Eksternal:** Kamus bahan akan disimpan di dalam aplikasi (*local database/hardcoded*) agar tidak memerlukan pembuatan *backend* dan *server* terpisah.
+* **Fitur Login / Autentikasi:** Aplikasi dapat langsung digunakan tanpa perlu mendaftar akun (data disimpan di memori perangkat).
+* **Fitur Berbagi Sosial Media / Komunitas.**
 
-## Getting Started
-
-This section guides you on how to run the project on your local machine.
-
-### Prerequisites
-Ensure you have the following software installed on your computer:
-* [Flutter SDK](https://docs.flutter.dev/get-started/install)
-* Android Studio or VS Code
-* Android Emulator / iOS Simulator
-
-### Installation Steps
-
-1. **Clone this repository**
-   ```bash
-   git clone [https://github.com/your-username/ceklabel.git](https://github.com/your-username/ceklabel.git)
+## 6. Kriteria Aplikasi Dinyatakan Berhasil
+1. Aplikasi dapat berjalan tanpa *crash* di perangkat Android (atau emulator).
+2. Fitur kamera berhasil mengambil gambar label yang jelas dan sistem OCR mampu mengekstrak minimal 80% teks yang dapat terbaca.
+3. Saat hasil teks mengandung salah satu bahan yang ada dalam daftar preferensi alergi pengguna, aplikasi berhasil memunculkan pop-up atau peringatan warna merah dalam waktu kurang dari 5 detik.
+4. Kode aplikasi tersusun rapi dengan pemisahan antara antarmuka (UI) dan logika pemindai.
