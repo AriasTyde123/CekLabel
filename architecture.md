@@ -1,408 +1,354 @@
-# Architecture.md — Lecturer GitHub Tracker
+## Purpose:
+Help consumers (especially people with allergies, special diets, and parents) understand food composition labels in seconds. The application scans composition label text via on-device OCR only when the user presses a button, matches it against a local ingredient dictionary, and shows allergen & hidden-sugar warnings plus layman explanations on a result screen. No backend, no login, no barcode.
 
-> Dokumen arsitektur untuk aplikasi full-stack sederhana bernama **Lecturer GitHub Tracker**.
-> Tujuan: membantu dosen memantau aktivitas commit GitHub tiap mahasiswa. Data commit hanya diambil saat dosen menekan tombol, disimpan di MySQL, dan ditampilkan sebagai ringkasan progres di dashboard.
-> Catatan konteks: file ini saat ini berada di repo `CekLabel` (Flutter offline-first). Spesifikasi di bawah ini adalah untuk proyek berbeda (`lecturer-github-tracker`, monorepo TypeScript). Jangan mencampur kedua tech-stack tersebut.
+Adapted from the planning template structure, but fully adjusted to `README.md` (MVP 12 pertemuan) and `AGENTS.md` (Senior Expert Flutter & Dart, offline-first, provider, local-only).
 
----
+## Use this stack:
 
-## 1. Ringkasan & Prinsip Arsitektur
+* Framework: Flutter + Dart (Null Safety strict)
+* State Management: `provider` only
+* OCR Engine: `google_mlkit_text_recognition`
+* Local Storage: `shared_preferences` for user preferences
+* Local Dictionary: bundled asset JSON (`assets/ingredients.json`)
+* UI: Material Design 3 (`useMaterial3: true`)
+* No Firebase, No Supabase, No MySQL, No external backend API
+* Code comments and variable/function names in English, all user-facing UI text in Indonesian
 
-* **Tipe aplikasi:** Full-stack web monorepo (npm workspaces), REST API tanpa auth v1. Asumsi satu dosen memakai aplikasi.
-* **Prinsip utama:**
-  1. `Manual sync only` — frontend tidak pernah memanggil GitHub secara otomatis. Dashboard hanya membaca dari MySQL. Sinkronisasi terjadi hanya via `POST .../sync` yang dipicu tombol.
-  2. `Never delete / never overwrite commits` — sinkronisasi bersifat append-only. Dedup berdasarkan `(RepositoryId, Sha)`.
-  3. `Single source of truth untuk tipe` — semua model domain, enum, DTO didefinisikan sekali di `packages/shared`, diimpor oleh `apps/web` dan `apps/api`. Tidak ada duplikasi definisi. Tipe Prisma tetap di backend saja.
-  4. `Clean folder structure` — pemisahan jelas: routes/controllers, services, prisma, UI pages/components.
-  5. `Public-first GitHub` — dukung repo publik tanpa token; jika `GITHUB_TOKEN` ada, pakai sebagai Bearer token untuk menaikkan rate limit.
+Add to `pubspec.yaml` (planned final):
+```yaml
+dependencies:
+  provider: ^6.1.2
+  shared_preferences: ^2.3.2
+  google_mlkit_text_recognition: ^0.13.0
+  image_picker: ^1.0.0
+  camera: ^0.10.0 (optional, if custom camera screen is needed)
 
----
-
-## 2. Tech Stack
-
-| Lapisan | Teknologi |
-|---|---|
-| Frontend | React + TypeScript + Vite + Tailwind CSS |
-| Backend | Node.js + TypeScript + Express |
-| Database | MySQL 8 (via Docker Compose) |
-| ORM | Prisma (migrations + seed) |
-| API style | REST API, JSON dengan property names PascalCase |
-| GitHub | GitHub REST API `GET /repos/{Owner}/{RepositoryName}/commits` |
-| Monorepo | npm workspaces: `apps/web`, `apps/api`, `packages/shared` |
-| Config | `.env` + `.env.example` (`DATABASE_URL`, `GITHUB_TOKEN` opsional) |
-
-Versi Node LTS, Prisma terbaru yang kompatibel MySQL 8.
-
----
-
-## 3. Struktur Monorepo
-
-```text
-lecturer-github-tracker/
-  package.json                    # workspaces: apps/*, packages/*
-  tsconfig.base.json
-  docker-compose.yml              # MySQL service
-  .env.example
-  README.md
-  apps/
-    web/                          # React + Vite + Tailwind
-      package.json                # dependensi @lecturer-github-tracker/shared
-      vite.config.ts
-      tailwind.config.js
-      src/
-        main.tsx
-        App.tsx                   # routing + layout + Course selector global
-        api/Client.ts             # fetch wrapper ke /api
-        pages/
-          DashboardPage.tsx
-          CourseListPage.tsx
-          StudentListPage.tsx
-          RepositoryListPage.tsx
-          StudentProgressPage.tsx
-        components/
-          SummaryCard.tsx
-          StudentTable.tsx
-          CommitTable.tsx
-          CourseForm.tsx
-          StudentForm.tsx
-          RepositoryForm.tsx
-          StatusBadge.tsx
-          ConfirmDialog.tsx
-          EmptyState.tsx
-    api/                          # Express + Prisma
-      package.json                # dependensi @lecturer-github-tracker/shared, @prisma/client
-      prisma/
-        schema.prisma
-        migrations/
-        seed.ts
-      src/
-        index.ts                  # bootstrap Express
-        App.ts                    # create app, middleware, routes
-        routes/
-          CourseRoutes.ts
-          StudentRoutes.ts
-          RepositoryRoutes.ts
-          SyncRoutes.ts
-          DashboardRoutes.ts
-        controllers/
-          CourseController.ts
-          StudentController.ts
-          RepositoryController.ts
-          SyncController.ts
-          DashboardController.ts
-        services/
-          CourseService.ts
-          StudentService.ts
-          RepositoryService.ts
-          GithubService.ts
-          SyncService.ts
-          DashboardService.ts
-        prisma/Client.ts
-        utils/
-          ParseRepositoryUrl.ts
-          MapToShared.ts          # mapping Prisma -> shared API models
-          HttpError.ts
-  packages/
-    shared/                       # @lecturer-github-tracker/shared
-      package.json
-      tsconfig.json
-      src/
-        models/Course.ts
-        models/Student.ts
-        models/Repository.ts
-        models/Commit.ts
-        enums/ActivityStatus.ts
-        dto/DashboardResponse.ts
-        dto/SyncResult.ts
-        constants/ActivityRules.ts # mis. InactiveThresholdDays = 14
-        index.ts
+flutter:
+  assets:
+    - assets/ingredients.json
 ```
 
-Aturan workspace:
+## Code rules:
 
-* `apps/web` dan `apps/api` mengimpor tipe dari `@lecturer-github-tracker/shared`. Frontend dilarang mengimpor tipe Prisma.
-* Backend memetakan entity Prisma ke model shared sebelum dikembalikan sebagai respons.
-* Konfigurasi TypeScript paths, script build/dev dibuat agar semua package berhasil dikompilasi (`tsc -b` atau Project References).
+* Do not add comments unless truly necessary.
+* Use PascalCase for all classes, enums, models, DTOs, providers, services, screens, and widgets. Example: `ScanResult`, `RiskLevel`, `ScanProvider`, `DetectionService`, `ScanResultScreen`.
+* Local variables, function parameters, and file names may use camelCase / snake_case following Dart conventions.
+* Keep code lines below 150 characters where practical.
+* Use a clean and simple folder structure (see Project structure).
+* Do not add authentication. No login/register. App is directly usable.
+* Separation of Concerns (mandatory per `AGENTS.md`):
+  * NEVER mix business logic or ML processing into `lib/screens/` or `lib/widgets/`.
+  * OCR processing logic must live in `lib/services/`.
+  * Preference state and scan-result state must live in `lib/providers/`.
+  * Complex widgets must be extracted as separate stateless widgets in `lib/widgets/` (avoid deep nesting / spaghetti code).
+* Error handling:
+  * Always wrap Camera / File System / JSON parsing in `try-catch`.
+  * Always show visual feedback (`CircularProgressIndicator`, error message in Indonesian, empty state) if OCR fails or dictionary fails to load.
 
-Script root contoh:
+## Main entities:
 
+### 1. Ingredient
+Dictionary entry from `assets/ingredients.json`.
+
+* Id: `String` (slug, e.g. `maltodekstrin`, `tartrazin`, `e621`)
+* Name: `String` (canonical chemical / label name)
+* Aliases: `List<String>` (hidden names, e.g. gula -> `sukrosa`, `sirup jagung tinggi fruktosa`, `dekstrosa`)
+* Category: `IngredientCategory` (`sugarAlias`, `allergen`, `additive`, `preservative`, `coloring`, `sweetener`, `other`)
+* AllergenGroup: `String?` (e.g. `Kacang`, `Susu`, `Gluten`, `Telur`, `Udang`, `Kedelai`, null if not allergen)
+* Description: `String` (explanation in plain Indonesian / bahasa awam)
+* RiskLevelDefault: `RiskLevel` (`danger`, `caution`, `safe`)
+
+### 2. AllergenPreference
+Already implemented in `lib/models/allergen_preference.dart`. Keep as-is.
+
+* UserName: `String`
+* SelectedAllergens: `Set<String>` (subset of `availableAllergens`: Kacang, Susu, Gluten, Telur, Udang, Kedelai)
+* Stored in `shared_preferences` via keys `preference_user_name`, `preference_allergens`
+
+### 3. DetectedIngredient
+Result of matching one dictionary entry against OCR text.
+
+* IngredientId: `String`
+* MatchedKeyword: `String` (actual substring found in scan text)
+* Category: `IngredientCategory`
+* RiskLevel: `RiskLevel` (escalated to `danger` if `AllergenGroup` is in user `SelectedAllergens`)
+* Description: `String` (copied from `Ingredient` for display)
+
+### 4. ScanResult
+In-memory result of one scan session (not persisted to disk in MVP, only held in provider).
+
+* Id: `String` (timestamp-based UUID)
+* RawText: `String` (full OCR output)
+* DetectedIngredients: `List<DetectedIngredient>`
+* DangerCount: `int`
+* CautionCount: `int`
+* SafeCount: `int`
+* ScannedAt: `DateTime`
+* CreatedAt: `DateTime`
+
+### 5. RiskLevel (enum)
+Adapted from `ActivityStatus` in the template.
+
+* `danger`: matches user-selected allergen -> red badge. Must trigger warning < 5 seconds after scan.
+* `caution`: hidden sugar / additive / preservative, not in user allergen list -> yellow/orange badge.
+* `safe`: detected but low risk, or no match -> green badge.
+
+```dart
+enum RiskLevel { danger, caution, safe }
+enum IngredientCategory { sugarAlias, allergen, additive, preservative, coloring, sweetener, other }
+enum PreferenceStatus { initial, loading, loaded, saving, success, error }
+enum ScanStatus { initial, pickingImage, recognizing, analyzing, success, error }
+```
+
+## Local storage rules (adapted from Database rules):
+
+* `ScanResult` is unique by `Id` in memory only. Never persist scan history to disk in MVP.
+* Never call network during scan or dashboard open. OCR + matching must run 100% on-device (OFFLINE-FIRST).
+* Never delete or overwrite `assets/ingredients.json` at runtime. It is read-only bundled asset.
+* When OCR text is analyzed again, re-run case-insensitive substring / token matching against the already-loaded dictionary. Do not mutate dictionary entries.
+* After successful preference save, persist only via `PreferenceService` (`shared_preferences`). Keys must remain `preference_user_name` and `preference_allergens`.
+* Use `try-catch` + typed failures (`PreferenceLoadFailure`, `PreferenceSaveFailure`, `OcrFailure`, `DictionaryLoadFailure`) for all storage / camera / JSON operations.
+* Seed dictionary with minimum viable entries covering: 6 allergen groups (Kacang, Susu, Gluten, Telur, Udang, Kedelai) + ~20 sugar aliases (sukrosa, glukosa, fruktosa, maltodekstrin, dekstrosa, sirup jagung, aspartam, sakarin, siklamat, sorbitol, dll) + common additives (tartrazin, E621/MSG, natrium benzoat, dll).
+
+Example `assets/ingredients.json` entry:
 ```json
 {
-  "scripts": {
-    "Build": "npm run build -ws",
-    "Dev:Api": "npm run dev -w apps/api",
-    "Dev:Web": "npm run dev -w apps/web",
-    "Migrate": "npm run migrate -w apps/api",
-    "Seed": "npm run seed -w apps/api"
-  }
+  "id": "maltodekstrin",
+  "name": "Maltodekstrin",
+  "aliases": ["maltodextrin", "dekstrin"],
+  "category": "sugarAlias",
+  "allergenGroup": "Gluten",
+  "description": "Gula tersembunyi dari pati (biasanya jagung/gandum). Cepat menaikkan gula darah.",
+  "riskLevelDefault": "caution"
 }
 ```
 
----
+## App features (adapted from Backend features):
 
-## 4. Model Domain & Database
+### 1. CRUD Preference (Pengaturan Preferensi Pengguna - Lokal)
+Already implemented via `PreferenceService` + `PreferenceProvider`. Keep.
 
-### 4.1 Entitas (Shared Models — PascalCase)
+* Load, update user name, toggle allergen, validate (name >= 3 chars, min 1 allergen), save to `shared_preferences`.
+* Validation messages in Indonesian: `Nama wajib diisi`, `Nama minimal 3 karakter`, `Pilih minimal 1 alergen`.
 
-Semua interface/type, enum, class, DTO, dan JSON property memakai PascalCase. Local variable boleh camelCase. Baris kode dijaga < 150 karakter bila memungkinkan. Tanpa komentar kecuali benar-benar perlu.
+### 2. OCR Text Scanner (Kamera Pemindai Teks)
+New. Lives in `lib/services/ocr_service.dart`, state in `lib/providers/scan_provider.dart`.
 
-`packages/shared/src/models/Course.ts`:
+* Triggered only by button click (`Ambil Foto` / `Pilih dari Galeri`). Never auto-scan on screen open.
+* Pick image via `image_picker`, run `google_mlkit_text_recognition`, return `RawText`.
+* Parse and normalize text (lowercase, trim) before detection.
+* Handle failures first: camera permission denied, blurry/empty image, ML Kit unavailable -> show Indonesian error.
+* Return result containing:
+  * ScanId
+  * RawTextLength
+  * DetectedCount
+  * DangerCount
+  * CautionCount
+  * ScannedAt
+  * Message (e.g. `Ditemukan 3 bahan berisiko`, `Tidak ada bahan berisiko terdeteksi`)
+* Target: >= 80% readable text extracted, warning shown < 5 seconds after detection.
 
-```ts
-export interface Course { Id: string; Name: string; Semester: string; Year: number; CreatedAt: string; }
-```
+### 3. Keyword Detection System (Sistem Deteksi Kata Kunci)
+New. Lives in `lib/services/detection_service.dart` + `lib/services/dictionary_service.dart`.
 
-`packages/shared/src/models/Student.ts`:
+* Load `assets/ingredients.json` once at startup via `rootBundle`.
+* Case-insensitive matching of `Name` + `Aliases` against `RawText`.
+* Escalation rule: if `AllergenGroup` in `SelectedAllergens` -> `RiskLevel.danger` regardless of default.
+* Else if `Category == sugarAlias/additive/preservative/coloring` -> `RiskLevel.caution`.
+* Else -> `RiskLevel.safe`.
+* Sort output: `danger` first, then `caution`, then `safe`.
+* Never mutate dictionary. Insert only new `DetectedIngredient` entries per scan.
 
-```ts
-export interface Student { Id: string; CourseId: string; StudentNumber: string; Name: string; Email: string; GithubUsername: string; CreatedAt: string; }
-```
+### 4. Mini Dictionary (Kamus Mini Komposisi)
+New. Lives in `lib/providers/dictionary_provider.dart`.
 
-`packages/shared/src/models/Repository.ts`:
+* Manual search screen: user types keyword without scanning.
+* Live filter by `Name` / `Aliases` / `Description`.
+* Show category badge + layman description.
+* Empty state in Indonesian: `Tidak ditemukan. Coba kata kunci lain.`
 
-```ts
-export interface Repository { Id: string; StudentId: string; Name: string; RepositoryUrl: string; Owner: string; RepositoryName: string; IsActive: boolean; LastSyncedAt: string | null; CreatedAt: string; }
-```
+### 5. Warning Summary (Ringkasan Hasil - adapted from Dashboard API)
+Computed in `ScanProvider`, not a backend API.
 
-`packages/shared/src/models/Commit.ts`:
+* Return scan summary:
+  * TotalDetected
+  * DangerCount
+  * CautionCount
+  * HasUserAllergen (bool)
+  * TopRisks (first 3 danger items)
+* Return per-ingredient display data:
+  * IngredientName
+  * MatchedKeyword
+  * CategoryLabel
+  * RiskLevel
+  * Description
+* RiskLevel rules:
+  * `danger`: allergen group matches user preference
+  * `caution`: sugar alias / additive without direct allergen match
+  * `safe`: low-risk or informational only
 
-```ts
-export interface Commit { Id: string; RepositoryId: string; Sha: string; Message: string; AuthorName: string; AuthorEmail: string; CommittedAt: string; CommitUrl: string; CreatedAt: string; }
-```
+## Screens (adapted from Frontend pages):
 
-`packages/shared/src/enums/ActivityStatus.ts`:
+### 1. Home Screen (`lib/screens/home_screen.dart`)
+* App title + short onboarding text.
+* Summary cards: total dictionary entries, active allergen preferences, last scan summary.
+* Buttons: `Pindai Label`, `Cari Bahan`, `Atur Preferensi`.
+* Shows loading state while dictionary loads, error message if load fails.
+* Home reads only from local asset + `shared_preferences` when opened. Must not call network or camera automatically.
 
-```ts
-export enum ActivityStatus { Active = "ACTIVE", Inactive = "INACTIVE", NoCommit = "NO_COMMIT" }
-```
+### 2. Scanner Screen (`lib/screens/scan_screen.dart`)
+* Preview placeholder + buttons `Ambil Foto` / `Pilih dari Galeri`.
+* Loading indicator during `recognizing` / `analyzing`.
+* On success navigate to `ScanResultScreen`. On failure show Indonesian error + `Coba Lagi`.
 
-`packages/shared/src/dto/SyncResult.ts`:
+### 3. Scan Result Screen (`lib/screens/scan_result_screen.dart`)
+* Red banner if `DangerCount > 0` containing user allergen (`Awas! Mengandung Kacang`), yellow banner if only caution, green banner if safe.
+* Table/list of each detected ingredient: name, matched keyword, category badge, risk badge, layman description.
+* Expandable `Lihat Teks Asli` for raw OCR output.
+* Button: `Pindai Lagi`.
 
-```ts
-export interface SyncResult { RepositoryId: string; FetchedCommitCount: number; NewCommitCount: number; ExistingCommitCount: number; LastSyncedAt: string; Message: string; }
-```
+### 4. Dictionary Screen (`lib/screens/dictionary_screen.dart`)
+* Search field (`Cari bahan...`, e.g. `maltodekstrin`, `tartrazin`, `E621`).
+* List of ingredients with category + risk badges.
+* Detail bottom-sheet / detail screen with full layman explanation.
+* Show ingredient count.
 
-`packages/shared/src/dto/DashboardResponse.ts`:
+### 5. Preference Screen (`lib/screens/preference_screen.dart`)
+Already implemented. Keep + polish.
 
-```ts
-import { ActivityStatus } from "../enums/ActivityStatus";
-export interface CourseSummary { TotalStudents: number; TotalRepositories: number; TotalCommits: number; ActiveStudents: number; InactiveStudents: number; StudentsWithoutCommits: number; }
-export interface StudentProgress { StudentId: string; StudentName: string; StudentNumber: string; RepositoryCount: number; TotalCommits: number; LatestCommitAt: string | null; ActivityStatus: ActivityStatus; }
-export interface DashboardResponse { Summary: CourseSummary; Students: StudentProgress[]; }
-```
+* Form: user name field + allergen checklist (`AllergenCheckbox`, `PreferenceForm` widgets already exist).
+* Validation + save button (`Simpan`).
+* Show success snackbar (`Preferensi tersimpan`) and error message (`Gagal menyimpan preferensi. Coba lagi.`).
+* Confirmation not needed for save; add reset button with confirmation dialog if implemented.
 
-### 4.2 Skema Prisma (Backend only)
+## UI requirements:
 
-Model Prisma memakai PascalCase untuk nama model agar selaras dengan aturan. Contoh `prisma/schema.prisma`:
+* Use Indonesian language for all labels, buttons, messages, and validation. Examples: `Pindai Label`, `Ambil Foto`, `Cari Bahan`, `Awas! Mengandung Alergen`, `Kemungkinan Mengandung Gula Tersembunyi`, `Aman`, `Lihat Teks Asli`, `Pindai Lagi`, `Simpan`.
+* Create a clean, responsive mobile layout (works on small phones + emulator).
+* Use simple lists, cards, badges, forms, confirmation dialog before destructive actions, loading indicators, and empty states.
+* Use status badge colors:
+  * Danger (allergen match): red (`Colors.red`)
+  * Caution (hidden sugar / additive): orange/yellow (`Colors.orange` / `Colors.amber`)
+  * Safe: green (`Colors.green`)
+* Do not add charts in the first version.
+* Use Material Design 3 components only. No custom design system in MVP.
 
-```prisma
-model Course {
-  Id        String    @id @default(cuid())
-  Name      String
-  Semester  String
-  Year      Int
-  CreatedAt DateTime  @default(now())
-  Students  Student[]
-  @@map("courses")
-}
+## Required app routes (adapted from Required API routes):
 
-model Student {
-  Id             String       @id @default(cuid())
-  CourseId       String
-  StudentNumber  String
-  Name           String
-  Email          String
-  GithubUsername String
-  CreatedAt      DateTime     @default(now())
-  Course         Course       @relation(fields: [CourseId], references: [Id], onDelete: Cascade)
-  Repositories   Repository[]
-  @@map("students")
-}
+Use named routes in `MaterialApp` (planned final):
 
-model Repository {
-  Id             String    @id @default(cuid())
-  StudentId      String
-  Name           String
-  RepositoryUrl  String
-  Owner          String
-  RepositoryName String
-  IsActive       Boolean   @default(true)
-  LastSyncedAt   DateTime?
-  CreatedAt      DateTime  @default(now())
-  Student        Student   @relation(fields: [StudentId], references: [Id], onDelete: Cascade)
-  Commits        Commit[]
-  @@map("repositories")
-}
+* `/home` -> `HomeScreen` (list summary + navigation hub)
+* `/scan` -> `ScanScreen` (camera / gallery + OCR trigger)
+* `/scan/result` -> `ScanResultScreen` (arguments: `ScanResult`)
+* `/dictionary` -> `DictionaryScreen`
+* `/dictionary/detail` -> `IngredientDetailScreen` (arguments: `IngredientId`)
+* `/preferences` -> `PreferenceScreen` (form + save)
 
-model Commit {
-  Id           String     @id @default(cuid())
-  RepositoryId String
-  Sha          String
-  Message      String     @db.Text
-  AuthorName   String
-  AuthorEmail  String
-  CommittedAt  DateTime
-  CommitUrl    String
-  CreatedAt    DateTime   @default(now())
-  Repository   Repository @relation(fields: [RepositoryId], references: [Id], onDelete: Cascade)
-  @@unique([RepositoryId, Sha])
-  @@map("commits")
-}
-```
+Route rules:
+* `/scan/result` must only be reachable after a successful scan. Direct navigation with empty result shows empty state.
+* `/home` must not trigger camera or OCR on open.
+* All routes must handle back navigation gracefully (no crash on Android back button).
 
-Relasi: Course 1—N Student, Student 1—N Repository, Repository 1—N Commit. Hapus Course/Student/Repository boleh cascade, tetapi sinkronisasi tidak pernah menghapus Commit secara logika bisnis.
+## Deliverables:
 
-### 4.3 Database Rules (wajib ditegakkan di `SyncService`)
+* Complete Flutter source code (`lib/`, `assets/`, `test/`).
+* `assets/ingredients.json` dictionary + seed entries (allergen groups + sugar aliases + additives).
+* `pubspec.yaml` with `provider`, `shared_preferences`, `google_mlkit_text_recognition`, `image_picker`.
+* README with: installation (`flutter pub get`), how to run (`flutter run`), emulator setup, camera permission setup (Android `AndroidManifest.xml`), how to update `ingredients.json`, and offline-first notes.
+* Ensure the app builds successfully (`flutter analyze` clean, `flutter build apk` succeeds) and manual scan + detection + preference save work on Android emulator / device.
+* Success criteria per `README.md`:
+  1. Runs without crash on Android (or emulator).
+  2. OCR extracts >= 80% readable text from clear label photo.
+  3. Allergen match shows red popup/warning < 5 seconds.
+  4. Clean separation between UI and scanner logic.
 
-* `Commit` unik berdasarkan `(RepositoryId, Sha)` via `@@unique`.
-* Jangan pernah menghapus data commit saat sinkronisasi.
-* Jangan pernah mengganti/menimpa record commit yang ada.
-* Saat fetch ulang, hanya simpan commit yang belum ada (`Sha` belum tersimpan untuk `RepositoryId` tersebut).
-* Update `LastSyncedAt` hanya setelah sinkronisasi sukses.
-* Gunakan Prisma migrations + seed: 1 contoh course, 3 students, repo GitHub publik.
+## Project structure:
 
----
-
-## 5. Backend Architecture
-
-Lapisan: `Routes -> Controllers -> Services -> Prisma`. Controllers tipis (validasi input + mapping status HTTP). Logic di Services.
-
-### 5.1 CRUD Course
-
-* Service: `CourseService` (Create, List, Detail, Update, Delete).
-* Validasi: `Name`, `Semester`, `Year` wajib.
-
-### 5.2 CRUD Student (dalam Course)
-
-* Service: `StudentService`.
-* `CourseId` berasal dari path untuk create/list. Validasi `StudentNumber`, `Name`, `GithubUsername` wajib.
-
-### 5.3 CRUD Repository (milik Student)
-
-* Service: `RepositoryService` + util `ParseRepositoryUrl`.
-* Validasi & parsing URL GitHub mis. `https://github.com/owner/repository`:
-  * Terima dengan/tanpa trailing slash dan `.git`.
-  * Tolak URL non-github, path tidak lengkap, atau mengandung spasi.
-  * Hasil parsing mengisi `Owner`, `RepositoryName`, normalisasi `RepositoryUrl`.
-* Field: `Name` (label tampilan), `RepositoryUrl`, `Owner`, `RepositoryName`, `IsActive`.
-
-### 5.4 Manual GitHub Commit Synchronization
-
-* `GithubService`: satu fungsi `FetchCommits(Owner, RepositoryName)` memanggil `GET https://api.github.com/repos/{Owner}/{RepositoryName}/commits?per_page=100`. Jika `GITHUB_TOKEN` ada, kirim header `Authorization: Bearer <token>` dan `Accept: application/vnd.github+json`. Tangani pagination dasar (hingga N halaman, mis. 5) bila perlu.
-* `SyncService.SyncOneRepository(RepositoryId)`:
-  1. Load repository dari DB.
-  2. Fetch commits dari GitHub.
-  3. Ambil daftar `Sha` yang sudah ada untuk `RepositoryId` tersebut.
-  4. Insert hanya yang baru via `createMany(skipDuplicates: true)` atau insert selektif.
-  5. Update `LastSyncedAt = now()`.
-  6. Kembalikan `SyncResult` berisi `RepositoryId, FetchedCommitCount, NewCommitCount, ExistingCommitCount, LastSyncedAt, Message`.
-* `SyncService.SyncCourse(CourseId)`: ambil semua repository aktif (`IsActive = true`) dalam course, panggil sync satu-per-satu, agregasikan hasil. Repository gagal tidak menghentikan keseluruhan; catat error per-repo dan lanjutkan.
-* Error bermakna (status + pesan Indonesia di frontend):
-  * Repo privat/invalid/unavailable (404) -> "Repositori tidak ditemukan atau bersifat privat."
-  * Rate limit (403 + `X-RateLimit-Remaining: 0`) -> "Batas permintaan GitHub tercapai. Coba lagi nanti atau isi GITHUB_TOKEN."
-  * Network/timeout -> "Gagal menghubungi GitHub."
-
-### 5.5 Dashboard API
-
-* `DashboardService.GetCourseDashboard(CourseId)`:
-  * `TotalStudents`: hitung students dalam course.
-  * `TotalRepositories`: hitung repositories milik students tersebut.
-  * `TotalCommits`: hitung commits dari repositories tersebut.
-  * Per student: `RepositoryCount`, `TotalCommits`, `LatestCommitAt` (max `CommittedAt`).
-  * `ActivityStatus`:
-    * `NO_COMMIT` bila tidak ada commit tersimpan.
-    * `INACTIVE` bila commit terakhir > 14 hari.
-    * `ACTIVE` bila commit terakhir <= 14 hari.
-  * `ActiveStudents`, `InactiveStudents`, `StudentsWithoutCommits` diagregasi dari status tiap student.
-* `DashboardService.GetStudentProgress(StudentId)`: info student + daftar repositories + total/latest commit + tabel riwayat commit (Message, Author, Date, SHA, link).
-
-Mapping Prisma -> shared dilakukan di `MapToShared.ts` agar JSON memakai PascalCase.
-
----
-
-## 6. API Contract (Required Routes)
-
-| Method | Route | Deskripsi |
-|---|---|---|
-| GET | `/api/courses` | List course |
-| POST | `/api/courses` | Buat course |
-| GET | `/api/courses/:Id` | Detail course |
-| PUT | `/api/courses/:Id` | Ubah course |
-| DELETE | `/api/courses/:Id` | Hapus course (konfirmasi di UI) |
-| GET | `/api/courses/:CourseId/students` | List students dalam course |
-| POST | `/api/courses/:CourseId/students` | Tambah student |
-| PUT | `/api/students/:Id` | Ubah student |
-| DELETE | `/api/students/:Id` | Hapus student |
-| GET | `/api/students/:Id/repositories` | List repositories milik student |
-| POST | `/api/students/:Id/repositories` | Tambah repository (validasi URL) |
-| PUT | `/api/repositories/:Id` | Ubah repository |
-| DELETE | `/api/repositories/:Id` | Hapus repository |
-| POST | `/api/repositories/:Id/sync` | Sinkronisasi satu repository, kembalikan `SyncResult` |
-| POST | `/api/courses/:CourseId/sync` | Sinkronisasi semua repository aktif dalam course |
-| GET | `/api/courses/:CourseId/dashboard` | Ringkasan course + progres tiap student (`DashboardResponse`) |
-| GET | `/api/students/:Id/progress` | Detail progres + riwayat commit satu student |
-
-Semua respons sukses/error memakai envelope konsisten, contoh `{ Data, Message }` dengan property PascalCase. Error memakai status HTTP yang tepat (400 validasi, 404 tidak ditemukan, 502/429 untuk GitHub).
-
----
-
-## 7. Frontend Architecture
-
-* **Routing sederhana** (React Router): `/` (Course Management), `/courses/:CourseId/dashboard` (Dashboard), `/courses/:CourseId/students` (Student Management), `/students/:Id/repositories` (Repository Management), `/students/:Id/progress` (Student Progress Detail).
-* **Data fetching:** `api/Client.ts` sebagai wrapper `fetch`. Dashboard hanya membaca dari MySQL saat dibuka; tidak ada panggilan GitHub otomatis. Sync hanya via tombol.
-* **Halaman:**
-  1. **Dashboard:** pemilih course, kartu ringkasan (total students, repositories, commits, active students, students without commits), tabel student (repository count, total commits, latest commit, status), tombol `Sinkronkan Semua Repositori`, state loading/sukses/error.
-  2. **Course Management:** daftar courses, form buat/ubah, tombol buka dashboard.
-  3. **Student Management:** daftar students dalam course terpilih, form tambah/ubah, tampilkan GitHub username.
-  4. **Repository Management:** daftar repositories milik student, form tambah/ubah URL GitHub, tombol `Sinkronkan Commit`, tampilkan last sync + jumlah commit tersimpan.
-  5. **Student Progress Detail:** info student, daftar repositories, total + latest commit, tabel riwayat (message, author, date, SHA, link ke GitHub).
-* **Komponen:** `SummaryCard`, `StudentTable`, `CommitTable`, `StatusBadge`, `ConfirmDialog` (sebelum hapus), `EmptyState`, form terpisah per entitas.
-
-### UI Requirements
-
-* Semua label, tombol, pesan, validasi berbahasa Indonesia.
-* Bersih & responsif (Tailwind), tabel sederhana, cards, badges, forms, dialog konfirmasi hapus, empty states.
-* Warna badge: Active hijau, Inactive oranye, No Commit merah.
-* Tanpa chart di v1.
-
----
-
-## 8. GitHub Integration & Env
-
-`.env.example`:
+* Single Flutter package (no monorepo, no npm workspaces - mobile only, offline-first).
+* Structure (planned final, `*` = already exists):
 
 ```text
-DATABASE_URL="mysql://user:password@localhost:3306/lecturer_tracker"
-GITHUB_TOKEN=""
-PORT=3001
-WEB_PORT=5173
+ceklabel/
+  assets/
+    ingredients.json
+  lib/
+    main.dart (*)               # MaterialApp, MultiProvider, routes, ThemeData M3
+    models/
+      allergen_preference.dart (*)  # AllergenPreference
+      ingredient.dart           # Ingredient + IngredientCategory
+      detected_ingredient.dart  # DetectedIngredient
+      scan_result.dart          # ScanResult
+      risk_level.dart           # RiskLevel enum
+    services/
+      preference_service.dart (*)   # shared_preferences load/save
+      dictionary_service.dart   # load + parse ingredients.json
+      ocr_service.dart          # google_mlkit_text_recognition wrapper
+      detection_service.dart    # text matching + risk escalation
+    providers/
+      preference_provider.dart (*)  # PreferenceStatus + validation + save
+      preference_status.dart (*)    # PreferenceStatus enum
+      scan_provider.dart        # ScanStatus + RawText + ScanResult
+      dictionary_provider.dart  # search query + filtered list
+    screens/
+      home_screen.dart
+      scan_screen.dart
+      scan_result_screen.dart
+      dictionary_screen.dart
+      ingredient_detail_screen.dart
+      preference_screen.dart (*)
+    widgets/
+      allergen_checkbox.dart (*)
+      preference_form.dart (*)
+      risk_badge.dart           # red/yellow/green badge by RiskLevel
+      ingredient_card.dart      # dictionary + result list item
+      warning_banner.dart       # red/yellow/green header
+      empty_state.dart          # reusable empty + error state
+      loading_indicator.dart    # reusable loading
+  test/
+    detection_service_test.dart
+    preference_provider_test.dart
+    dictionary_service_test.dart
 ```
 
-* `docker-compose.yml` menjalankan MySQL 8 + volume persisten + healthcheck. Contoh service `db` port `3306`, kredensial sinkron dengan `DATABASE_URL`.
-* Backend membaca `GITHUB_TOKEN` opsional; bila kosong tetap dukung repo publik.
-* README wajib menjelaskan: instalasi, migrasi Prisma, seed, cara jalan backend/frontend, Docker, dan konfigurasi token GitHub.
+## Shared model requirements (adapted from Shared package requirements):
 
----
+* There is no `packages/shared` (Flutter single-package). Instead `lib/models/` is the single source of truth.
+* Store all shared domain models and enums here. Both `lib/providers/` and `lib/services/` and `lib/screens/` must import from `lib/models/`.
+* Do not duplicate model definitions between providers and services.
 
-## 9. Konvensi Kode
+Example model files:
 
-* Tanpa komentar kecuali benar-benar perlu.
-* PascalCase untuk semua class, type, interface, enum, komponen React, model DB, API DTO, dan JSON property. Contoh: `StudentProgress`, `ActivityStatus`, `SyncResult`, `TotalCommits`.
-* camelCase hanya untuk local variable.
-* Jaga panjang baris < 150 karakter bila praktis.
-* Struktur folder bersih & sederhana seperti di Bagian 3.
+```text
+lib/models/
+  ingredient.dart
+  detected_ingredient.dart
+  scan_result.dart
+  allergen_preference.dart
+  risk_level.dart
+```
 
----
+## Model rules:
 
-## 10. Deliverables & Kriteria Selesai
+* Define shared Dart classes / enums only once in `lib/models/`.
+* Example: `Ingredient`, `DetectedIngredient`, `ScanResult`, and `RiskLevel` must be imported by both providers and services from `lib/models/`.
+* JSON parsing stays in services (`dictionary_service.dart` maps raw JSON -> `Ingredient`). Providers and screens must never parse JSON directly.
+* Screens must not import `shared_preferences`, `image_picker`, or `google_mlkit_text_recognition` directly. All platform/ML access goes through services.
+* Configure `flutter.assets` and `provider` wiring (`MultiProvider` in `main.dart`) correctly so the app compiles and runs offline.
 
-* Source frontend + backend lengkap, schema/migrasi/seed Prisma, Docker Compose MySQL, `.env.example`, README (instalasi, migrasi, seed, startup, Docker, token).
-* Aplikasi berhasil build dan CRUD dasar + sinkronisasi commit manual terbukti bekerja: tambah course/student/repo, tekan sync, commit baru tersimpan tanpa menghapus yang lama, dashboard terupdate.
+## Out of Scope (must NOT be built in MVP):
 
----
+* Barcode scanner (text OCR only).
+* Online database / external API / backend server.
+* Login / authentication.
+* Social share / community features.
+* Charts / analytics dashboard.
+* iOS-specific optimization beyond default Flutter build (focus Android).
 
-## 11. Out of Scope v1
+## Manual test checklist (definition of done):
 
-* Tanpa autentikasi (satu dosen).
-* Tanpa chart.
-* Fokus repo publik dulu; privat hanya tampilkan error bermakna.
+1. Fresh install -> open app -> set name + check `Kacang` + `Susu` -> `Simpan` -> reopen app -> preferences persist.
+2. `Pindai Label` -> photo of label containing `susu bubuk` -> red danger banner appears < 5s.
+3. `Pindai Label` -> photo containing `maltodekstrin` without allergen match -> yellow caution banner.
+4. `Cari Bahan` -> type `E621` -> shows MSG explanation in plain Indonesian.
+5. Airplane mode ON -> all 4 flows above still work (offline-first proof).
+6. `flutter analyze` passes, no crash on back navigation, no network permission required.
