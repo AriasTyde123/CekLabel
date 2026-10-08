@@ -1,106 +1,92 @@
-import 'dart:async';
-
-import 'package:ceklabel/models/allergen_preference.dart';
 import 'package:ceklabel/providers/preference_provider.dart';
 import 'package:ceklabel/screens/preference_screen.dart';
 import 'package:ceklabel/services/preference_service.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class _DelayedService extends PreferenceService {
-  _DelayedService() : super(prefs: null);
-
-  @override
-  Future<AllergenPreference> loadPreferences() {
-    return Completer<AllergenPreference>().future;
-  }
-}
-
-class _FailingService extends PreferenceService {
-  _FailingService() : super(prefs: null);
-
-  @override
-  Future<AllergenPreference> loadPreferences() async {
-    throw const PreferenceLoadFailure();
-  }
-
-  @override
-  Future<void> savePreferences(AllergenPreference preference) async {
-    throw const PreferenceSaveFailure();
-  }
-}
-
-Future<void> _pumpScreen(
-  WidgetTester tester,
-  PreferenceProvider provider,
-) {
-  return tester.pumpWidget(
-    ChangeNotifierProvider<PreferenceProvider>.value(
-      value: provider,
-      child: const MaterialApp(home: PreferenceScreen()),
-    ),
+Widget _buildTestApp(PreferenceProvider provider) {
+  return ChangeNotifierProvider<PreferenceProvider>.value(
+    value: provider,
+    child: const MaterialApp(home: PreferenceScreen()),
   );
 }
 
 void main() {
-  testWidgets('initial state shows empty hint', (tester) async {
-    SharedPreferences.setMockInitialValues({});
-    final provider = PreferenceProvider(service: PreferenceService());
-    await _pumpScreen(tester, provider);
-    expect(find.text('Belum ada data preferensi'), findsOneWidget);
-  });
+  setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('loading state shows progress indicator', (tester) async {
-    final provider = PreferenceProvider(service: _DelayedService());
-    await _pumpScreen(tester, provider);
-    await tester.pump();
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
-  });
+  testWidgets('menampilkan judul, field nama, daftar alergen, dan tombol aksi', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
-  testWidgets('loaded state shows form with saved data', (tester) async {
-    SharedPreferences.setMockInitialValues({
-      'preference_user_name': 'Budi',
-      'preference_allergens': ['Kacang'],
-    });
-    final provider = PreferenceProvider(service: PreferenceService());
-    await _pumpScreen(tester, provider);
+    final provider = PreferenceProvider(PreferenceService());
+    await tester.pumpWidget(_buildTestApp(provider));
     await tester.pumpAndSettle();
-    expect(find.byType(TextFormField), findsOneWidget);
-    expect(find.text('Budi'), findsOneWidget);
+
+    expect(find.text('Atur Preferensi'), findsOneWidget);
+    expect(find.text('Nama panggilan'), findsOneWidget);
     expect(find.text('Kacang'), findsOneWidget);
+    expect(find.text('Susu'), findsOneWidget);
+    expect(find.text('Simpan'), findsOneWidget);
+    expect(find.text('Atur Ulang'), findsOneWidget);
   });
 
-  testWidgets('validation state shows errors on empty submit', (tester) async {
-    SharedPreferences.setMockInitialValues({});
-    final provider = PreferenceProvider(service: PreferenceService());
-    await _pumpScreen(tester, provider);
+  testWidgets('menampilkan pesan validasi jika disimpan saat input belum valid', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final provider = PreferenceProvider(PreferenceService());
+    await tester.pumpWidget(_buildTestApp(provider));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Simpan Preferensi'));
+
+    await tester.tap(find.text('Simpan'));
     await tester.pump();
+
     expect(find.text('Nama wajib diisi'), findsOneWidget);
-    expect(find.text('Pilih minimal 1 alergen'), findsWidgets);
+    expect(find.text('Pilih minimal 1 alergen'), findsOneWidget);
   });
 
-  testWidgets('success state saves and shows snackbar', (tester) async {
-    SharedPreferences.setMockInitialValues({});
-    final provider = PreferenceProvider(service: PreferenceService());
-    await _pumpScreen(tester, provider);
+  testWidgets('menyimpan preferensi berhasil dan memunculkan snackbar', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final provider = PreferenceProvider(PreferenceService());
+    await tester.pumpWidget(_buildTestApp(provider));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextFormField), 'Sinta');
-    await tester.tap(find.text('Susu'));
+
+    await tester.enterText(find.byType(TextField), 'Budi');
+    await tester.tap(find.text('Kacang'));
     await tester.pump();
-    await tester.tap(find.text('Simpan Preferensi'));
+
+    await tester.tap(find.text('Simpan'));
     await tester.pumpAndSettle();
+
     expect(find.text('Preferensi tersimpan'), findsOneWidget);
+    expect(provider.savedUserName, 'Budi');
+    expect(provider.savedAllergens.contains('Kacang'), isTrue);
   });
 
-  testWidgets('error state shows message and retry', (tester) async {
-    final provider = PreferenceProvider(service: _FailingService());
-    await _pumpScreen(tester, provider);
+  testWidgets('menampilkan dialog konfirmasi saat tombol Atur Ulang ditekan', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final provider = PreferenceProvider(PreferenceService());
+    await tester.pumpWidget(_buildTestApp(provider));
     await tester.pumpAndSettle();
-    expect(find.text('Gagal memuat preferensi. Coba lagi.'), findsOneWidget);
-    expect(find.text('Coba Lagi'), findsOneWidget);
+
+    await tester.tap(find.text('Atur Ulang'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Atur ulang preferensi?'), findsOneWidget);
+    expect(find.text('Batal'), findsOneWidget);
   });
 }

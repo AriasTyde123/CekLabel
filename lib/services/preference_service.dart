@@ -1,53 +1,44 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/allergen_preference.dart';
+import '../models/failures.dart';
 
 class PreferenceService {
-  // ignore: prefer_initializing_formals, intentional nullable injection for tests
-  PreferenceService({SharedPreferences? prefs}) : _prefs = prefs;
-
-  static const String userNameKey = 'preference_user_name';
+  static const String nameKey = 'preference_user_name';
   static const String allergensKey = 'preference_allergens';
 
-  final SharedPreferences? _prefs;
-
-  Future<SharedPreferences> _resolvePrefs() async {
-    if (_prefs != null) return _prefs;
-    return SharedPreferences.getInstance();
-  }
-
-  Future<AllergenPreference> loadPreferences() async {
+  Future<AllergenPreference> load() async {
     try {
-      final prefs = await _resolvePrefs();
-      final userName = prefs.getString(userNameKey) ?? '';
-      final allergens = prefs.getStringList(allergensKey) ?? <String>[];
+      final prefs = await SharedPreferences.getInstance();
       return AllergenPreference(
-        userName: userName,
-        selectedAllergens: allergens.toSet(),
+        userName: prefs.getString(nameKey) ?? '',
+        selectedAllergens: (prefs.getStringList(allergensKey) ?? const <String>[]).toSet(),
       );
     } catch (_) {
       throw const PreferenceLoadFailure();
     }
   }
 
-  Future<void> savePreferences(AllergenPreference preference) async {
+  Future<void> save(AllergenPreference preference) async {
     try {
-      final prefs = await _resolvePrefs();
-      await prefs.setString(userNameKey, preference.userName);
-      await prefs.setStringList(
-        allergensKey,
-        preference.selectedAllergens.toList(),
-      );
+      final prefs = await SharedPreferences.getInstance();
+      final nameSaved = await prefs.setString(nameKey, preference.userName);
+      final allergensSaved = await prefs.setStringList(allergensKey, preference.selectedAllergens.toList()..sort());
+      if (!nameSaved || !allergensSaved) throw const PreferenceSaveFailure();
+    } on PreferenceSaveFailure {
+      rethrow;
     } catch (_) {
       throw const PreferenceSaveFailure();
     }
   }
-}
 
-class PreferenceLoadFailure implements Exception {
-  const PreferenceLoadFailure();
-}
-
-class PreferenceSaveFailure implements Exception {
-  const PreferenceSaveFailure();
+  Future<void> clear() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(nameKey);
+      await prefs.remove(allergensKey);
+    } catch (_) {
+      throw const PreferenceSaveFailure('Gagal mengatur ulang preferensi. Coba lagi.');
+    }
+  }
 }

@@ -1,117 +1,62 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import '../models/allergen_preference.dart';
-import '../providers/preference_provider.dart';
-import '../providers/preference_status.dart';
 import 'allergen_checkbox.dart';
 
-class PreferenceForm extends StatefulWidget {
-  const PreferenceForm({super.key});
+class PreferenceForm extends StatelessWidget {
+  const PreferenceForm({
+    super.key,
+    required this.nameController,
+    required this.selectedAllergens,
+    required this.nameError,
+    required this.allergenError,
+    required this.onNameChanged,
+    required this.onAllergenToggled,
+  });
 
-  @override
-  State<PreferenceForm> createState() => _PreferenceFormState();
-}
-
-class _PreferenceFormState extends State<PreferenceForm> {
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _nameController;
-
-  @override
-  void initState() {
-    super.initState();
-    _nameController = TextEditingController(
-      text: context.read<PreferenceProvider>().preference.userName,
-    );
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final userName = context.watch<PreferenceProvider>().preference.userName;
-    if (_nameController.text != userName) {
-      _nameController.text = userName;
-    }
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit(PreferenceProvider provider) async {
-    final isValid = _formKey.currentState?.validate() ?? false;
-    final allergenError = provider.validateAllergens();
-    if (!isValid || allergenError != null) {
-      if (allergenError != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(allergenError)),
-        );
-      }
-      setState(() {});
-      return;
-    }
-    final success = await provider.save();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          success ? 'Preferensi tersimpan' : provider.errorMessage,
-        ),
-      ),
-    );
-  }
+  final TextEditingController nameController;
+  final Set<String> selectedAllergens;
+  final String? nameError;
+  final String? allergenError;
+  final ValueChanged<String> onNameChanged;
+  final void Function(String allergen, bool selected) onAllergenToggled;
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<PreferenceProvider>();
-    final isSaving = provider.status == PreferenceStatus.saving;
-
-    return Form(
-      key: _formKey,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          TextFormField(
-            controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: 'Nama pengguna',
-              border: OutlineInputBorder(),
-            ),
-            onChanged: provider.updateUserName,
-            validator: provider.validateUserName,
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: nameController,
+          onChanged: onNameChanged,
+          textCapitalization: TextCapitalization.words,
+          decoration: InputDecoration(
+            labelText: 'Nama panggilan',
+            prefixIcon: const Icon(Icons.person_outline),
+            errorText: nameError,
+            border: const OutlineInputBorder(),
           ),
-          const SizedBox(height: 16),
-          const Text(
-            'Pilih alergen yang diwaspadai',
-            style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 24),
+        Text('Alergen yang diwaspadai', style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        Text('Bahan yang cocok akan ditandai merah saat pemindaian.',
+            style: textTheme.bodySmall?.copyWith(color: scheme.outline)),
+        const SizedBox(height: 12),
+        for (final allergen in availableAllergens)
+          AllergenCheckbox(
+            label: allergen,
+            value: selectedAllergens.contains(allergen),
+            onChanged: (selected) => onAllergenToggled(allergen, selected),
           ),
-          for (final allergen in AllergenPreference.availableAllergens)
-            AllergenCheckbox(
-              label: allergen,
-              value: provider.preference.selectedAllergens.contains(allergen),
-              onChanged: (_) => provider.toggleAllergen(allergen),
-            ),
-          if (provider.validateAllergens() != null &&
-              provider.preference.selectedAllergens.isNotEmpty == false)
-            const Text(
-              'Pilih minimal 1 alergen',
-              style: TextStyle(color: Colors.red),
-            ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: isSaving ? null : () => _submit(provider),
-            child: isSaving
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('Simpan Preferensi'),
+        if (allergenError != null)
+          Padding(
+            padding: const EdgeInsets.only(left: 12, top: 4),
+            child: Text(allergenError!, style: textTheme.bodySmall?.copyWith(color: scheme.error)),
           ),
-        ],
-      ),
+      ],
     );
   }
 }
