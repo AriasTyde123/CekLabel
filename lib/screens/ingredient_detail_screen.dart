@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/risk_level.dart';
 import '../providers/dictionary_provider.dart';
+import '../providers/preference_provider.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/risk_badge.dart';
 
@@ -22,6 +24,10 @@ class IngredientDetailScreen extends StatelessWidget {
       );
     }
 
+    final savedAllergens = context.watch<PreferenceProvider>().savedAllergens;
+    final isUserAllergen = ingredient.allergenGroup != null && savedAllergens.contains(ingredient.allergenGroup);
+    final displayRisk = isUserAllergen ? RiskLevel.danger : ingredient.riskLevelDefault;
+
     final textTheme = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
 
@@ -37,12 +43,38 @@ class IngredientDetailScreen extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                RiskBadge(level: ingredient.riskLevelDefault),
+                RiskBadge(level: displayRisk),
                 CategoryBadge(category: ingredient.category),
                 if (ingredient.allergenGroup != null)
                   Chip(label: Text('Alergen ${ingredient.allergenGroup}'), visualDensity: VisualDensity.compact),
               ],
             ),
+            if (isUserAllergen) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Colors.red),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Perhatian: Bahan ini termasuk dalam daftar alergen yang Anda waspadai (${ingredient.allergenGroup}).',
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: Colors.red.shade900,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             Text('Artinya dalam bahasa awam', style: textTheme.titleSmall?.copyWith(color: scheme.outline)),
             const SizedBox(height: 6),

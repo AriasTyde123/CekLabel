@@ -14,17 +14,24 @@ class DictionaryProvider extends ChangeNotifier {
   DictionaryStatus _status = DictionaryStatus.initial;
   List<Ingredient> _ingredients = const [];
   String _query = '';
+  bool _onlyUserAllergens = false;
   String? _errorMessage;
 
   DictionaryStatus get status => _status;
   List<Ingredient> get ingredients => _ingredients;
   String get query => _query;
+  bool get onlyUserAllergens => _onlyUserAllergens;
   String? get errorMessage => _errorMessage;
 
-  List<Ingredient> get filtered {
+  List<Ingredient> filtered([Set<String>? userAllergens]) {
     final keyword = _query.trim().toLowerCase();
-    if (keyword.isEmpty) return _ingredients;
     return _ingredients.where((item) {
+      if (_onlyUserAllergens) {
+        if (userAllergens == null || userAllergens.isEmpty) return false;
+        final group = item.allergenGroup;
+        if (group == null || !userAllergens.contains(group)) return false;
+      }
+      if (keyword.isEmpty) return true;
       return item.name.toLowerCase().contains(keyword) ||
           item.description.toLowerCase().contains(keyword) ||
           item.aliases.any((alias) => alias.toLowerCase().contains(keyword));
@@ -54,6 +61,11 @@ class DictionaryProvider extends ChangeNotifier {
 
   void setQuery(String value) {
     _query = value;
+    notifyListeners();
+  }
+
+  void toggleOnlyUserAllergens(bool value) {
+    _onlyUserAllergens = value;
     notifyListeners();
   }
 }
