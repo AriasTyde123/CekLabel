@@ -12,6 +12,7 @@ class IngredientCard extends StatelessWidget {
     required this.riskLevel,
     required this.description,
     this.matchedKeyword,
+    this.userAllergenGroup,
     this.onTap,
   });
 
@@ -20,6 +21,7 @@ class IngredientCard extends StatelessWidget {
   final RiskLevel riskLevel;
   final String description;
   final String? matchedKeyword;
+  final String? userAllergenGroup;
   final VoidCallback? onTap;
 
   @override
@@ -46,7 +48,29 @@ class IngredientCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(name, style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(name, style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                          ),
+                          if (userAllergenGroup != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.red.withValues(alpha: 0.4)),
+                              ),
+                              child: Text(
+                                'Alergen Anda ($userAllergenGroup)',
+                                style: textTheme.labelSmall?.copyWith(
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                       if (matchedKeyword != null) ...[
                         const SizedBox(height: 2),
                         Text('Terbaca: "$matchedKeyword"', style: textTheme.bodySmall?.copyWith(color: scheme.outline)),
