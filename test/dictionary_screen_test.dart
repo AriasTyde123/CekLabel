@@ -1,4 +1,3 @@
-import 'package:ceklabel/models/allergen_preference.dart';
 import 'package:ceklabel/models/ingredient.dart';
 import 'package:ceklabel/models/risk_level.dart';
 import 'package:ceklabel/providers/dictionary_provider.dart';
