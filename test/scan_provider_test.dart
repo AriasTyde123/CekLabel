@@ -5,6 +5,7 @@ import 'package:ceklabel/providers/scan_provider.dart';
 import 'package:ceklabel/services/detection_service.dart';
 import 'package:ceklabel/services/ocr_service.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _FakeOcrService extends OcrService {
   _FakeOcrService({this.mockPath = '/dummy/path.jpg', this.shouldFail = false});
@@ -30,6 +31,8 @@ class _FakeOcrService extends OcrService {
 }
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   const dictionary = [
     Ingredient(
       id: 'susu',
@@ -90,5 +93,22 @@ void main() {
     expect(summary.hasUserAllergen, isTrue);
     expect(summary.overallLevel, RiskLevel.danger);
     expect(summary.allergenGroups, contains('Susu'));
+  });
+
+  test('scan menyimpan ke riwayat dan loadHistory memuat kembali riwayat', () async {
+    final provider = ScanProvider(_FakeOcrService(), DetectionService());
+    provider.updateDependencies(dictionary, {'Susu'});
+
+    await provider.scan(ScanSource.camera);
+    expect(provider.history.length, 1);
+
+    final secondProvider = ScanProvider(_FakeOcrService(), DetectionService());
+    await secondProvider.loadHistory();
+    expect(secondProvider.history.length, 1);
+    expect(secondProvider.result?.id, provider.history.first.id);
+
+    await secondProvider.clearHistory();
+    expect(secondProvider.history, isEmpty);
+    expect(secondProvider.result, isNull);
   });
 }

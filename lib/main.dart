@@ -27,7 +27,7 @@ class CekLabelApp extends StatelessWidget {
         ChangeNotifierProvider<DictionaryProvider>(create: (_) => DictionaryProvider(DictionaryService())..load()),
         ChangeNotifierProvider<PreferenceProvider>(create: (_) => PreferenceProvider(PreferenceService())..load()),
         ChangeNotifierProxyProvider2<DictionaryProvider, PreferenceProvider, ScanProvider>(
-          create: (context) => ScanProvider(context.read<OcrService>(), context.read<DetectionService>()),
+          create: (context) => ScanProvider(context.read<OcrService>(), context.read<DetectionService>())..loadHistory(),
           update: (_, dictionary, preference, scan) =>
               scan!..updateDependencies(dictionary.ingredients, preference.savedAllergens),
         ),
