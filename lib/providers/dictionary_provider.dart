@@ -15,12 +15,14 @@ class DictionaryProvider extends ChangeNotifier {
   List<Ingredient> _ingredients = const [];
   String _query = '';
   bool _onlyUserAllergens = false;
+  IngredientCategory? _selectedCategory;
   String? _errorMessage;
 
   DictionaryStatus get status => _status;
   List<Ingredient> get ingredients => _ingredients;
   String get query => _query;
   bool get onlyUserAllergens => _onlyUserAllergens;
+  IngredientCategory? get selectedCategory => _selectedCategory;
   String? get errorMessage => _errorMessage;
 
   List<Ingredient> filtered([Set<String>? userAllergens]) {
@@ -30,6 +32,9 @@ class DictionaryProvider extends ChangeNotifier {
         if (userAllergens == null || userAllergens.isEmpty) return false;
         final group = item.allergenGroup;
         if (group == null || !userAllergens.contains(group)) return false;
+      }
+      if (_selectedCategory != null && item.category != _selectedCategory) {
+        return false;
       }
       if (keyword.isEmpty) return true;
       return item.name.toLowerCase().contains(keyword) ||
@@ -66,6 +71,20 @@ class DictionaryProvider extends ChangeNotifier {
 
   void toggleOnlyUserAllergens(bool value) {
     _onlyUserAllergens = value;
+    if (value) _selectedCategory = null;
+    notifyListeners();
+  }
+
+  void setCategory(IngredientCategory? category) {
+    _selectedCategory = category;
+    if (category != null) _onlyUserAllergens = false;
+    notifyListeners();
+  }
+
+  void clearFilters() {
+    _selectedCategory = null;
+    _onlyUserAllergens = false;
+    _query = '';
     notifyListeners();
   }
 }

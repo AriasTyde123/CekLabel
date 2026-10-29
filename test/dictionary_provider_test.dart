@@ -94,6 +94,32 @@ void main() {
     expect(results.first.name, 'Susu Bubuk');
   });
 
+  test('setCategory menyaring bahan berdasarkan kategori tertentu', () async {
+    final provider = DictionaryProvider(_FakeDictionaryService(data: _testIngredients));
+    await provider.load();
+
+    provider.setCategory(IngredientCategory.sugarAlias);
+    final results = provider.filtered();
+
+    expect(results.length, 1);
+    expect(results.first.name, 'Maltodekstrin');
+    expect(provider.selectedCategory, IngredientCategory.sugarAlias);
+  });
+
+  test('clearFilters mengatur ulang kategori, query, dan alergen saya', () async {
+    final provider = DictionaryProvider(_FakeDictionaryService(data: _testIngredients));
+    await provider.load();
+
+    provider.setCategory(IngredientCategory.additive);
+    provider.setQuery('msg');
+    provider.clearFilters();
+
+    expect(provider.selectedCategory, isNull);
+    expect(provider.query, isEmpty);
+    expect(provider.onlyUserAllergens, isFalse);
+    expect(provider.filtered().length, 3);
+  });
+
   test('findById mengembalikan bahan yang tepat atau null jika tidak ada', () async {
     final provider = DictionaryProvider(_FakeDictionaryService(data: _testIngredients));
     await provider.load();

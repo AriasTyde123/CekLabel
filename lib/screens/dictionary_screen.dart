@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/ingredient.dart';
 import '../models/risk_level.dart';
 import '../providers/dictionary_provider.dart';
 import '../providers/preference_provider.dart';
@@ -50,9 +51,27 @@ class DictionaryScreen extends StatelessWidget {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              Text('Kategori Filter', style: Theme.of(context).textTheme.labelMedium?.copyWith(color: Theme.of(context).colorScheme.outline)),
+              Text('${items.length} bahan', style: Theme.of(context).textTheme.labelLarge),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 44,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            children: [
+              FilterChip(
+                label: const Text('Semua'),
+                selected: !onlyAllergens && dictionary.selectedCategory == null,
+                onSelected: (_) => context.read<DictionaryProvider>().setCategory(null),
+              ),
+              const SizedBox(width: 8),
               FilterChip(
                 label: Text(
                   onlyAllergens && savedAllergens.isNotEmpty
@@ -64,8 +83,23 @@ class DictionaryScreen extends StatelessWidget {
                   context.read<DictionaryProvider>().toggleOnlyUserAllergens(selected);
                 },
               ),
-              const Spacer(),
-              Text('${items.length} bahan', style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(width: 8),
+              for (final cat in [
+                IngredientCategory.sugarAlias,
+                IngredientCategory.preservative,
+                IngredientCategory.coloring,
+                IngredientCategory.sweetener,
+                IngredientCategory.additive,
+              ]) ...[
+                FilterChip(
+                  label: Text(cat.label),
+                  selected: dictionary.selectedCategory == cat,
+                  onSelected: (selected) {
+                    context.read<DictionaryProvider>().setCategory(selected ? cat : null);
+                  },
+                ),
+                const SizedBox(width: 8),
+              ],
             ],
           ),
         ),

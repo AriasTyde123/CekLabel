@@ -209,4 +209,26 @@ void main() {
     expect(find.text('Nama lain di label'), findsOneWidget);
     expect(find.text('maltodextrin'), findsOneWidget);
   });
+
+  testWidgets('menekan chip kategori menyaring bahan berdasarkan kategori tersebut', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final dictProvider = DictionaryProvider(_FakeDictionaryService(_mockIngredients));
+    await dictProvider.load();
+    final prefProvider = PreferenceProvider(PreferenceService());
+
+    await tester.pumpWidget(_buildTestApp(dictProvider: dictProvider, prefProvider: prefProvider));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilterChip, 'Gula Tersembunyi'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 bahan'), findsOneWidget);
+    expect(find.text('Maltodekstrin'), findsOneWidget);
+    expect(find.text('Susu Bubuk'), findsNothing);
+    expect(find.text('Monosodium Glutamat'), findsNothing);
+  });
 }
