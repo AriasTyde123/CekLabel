@@ -20,6 +20,7 @@ class TipRequest {
     required this.hasHiddenSugar,
     required this.hasAdditives,
     required this.riskyIngredients,
+    this.hasSyubhat = false,
   });
 
   factory TipRequest.fromSummary(ScanResult result, ScanSummary summary) => TipRequest(
@@ -30,6 +31,7 @@ class TipRequest {
         crossContaminationGroups: summary.crossContamination?.allergenGroups ?? const [],
         hasHiddenSugar: summary.hasHiddenSugar,
         hasAdditives: summary.hasAdditives,
+        hasSyubhat: summary.hasSyubhat || summary.hasNonHalal,
         riskyIngredients: [
           for (final item in summary.ingredients)
             if (item.riskLevel != RiskLevel.safe) item.ingredientName,
@@ -43,6 +45,7 @@ class TipRequest {
   final List<String> crossContaminationGroups;
   final bool hasHiddenSugar;
   final bool hasAdditives;
+  final bool hasSyubhat;
   final List<String> riskyIngredients;
 
   /// Changes whenever the evaluation input changes (e.g. profiles toggled).
@@ -53,7 +56,7 @@ class TipRequest {
         crossContaminationGroups.join(','),
         hasHiddenSugar,
         hasAdditives,
+        hasSyubhat,
         riskyIngredients.join(','),
       ].join('|');
 }
-

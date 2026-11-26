@@ -20,6 +20,7 @@ class FamilyProfile {
     this.sensitivity = SensitivityLevel.mild,
     this.avoidHiddenSugar = false,
     this.avoidAdditives = false,
+    this.avoidSyubhat = false,
     this.isActive = true,
   });
 
@@ -35,6 +36,7 @@ class FamilyProfile {
       sensitivity: SensitivityLevel.values.asNameMap()[json['sensitivity']] ?? SensitivityLevel.mild,
       avoidHiddenSugar: json['avoidHiddenSugar'] as bool? ?? false,
       avoidAdditives: json['avoidAdditives'] as bool? ?? false,
+      avoidSyubhat: json['avoidSyubhat'] as bool? ?? false,
       isActive: json['isActive'] as bool? ?? true,
     );
   }
@@ -46,11 +48,12 @@ class FamilyProfile {
   final SensitivityLevel sensitivity;
   final bool avoidHiddenSugar;
   final bool avoidAdditives;
+  final bool avoidSyubhat;
   final bool isActive;
 
   bool get isSevere => sensitivity == SensitivityLevel.severe;
 
-  bool get hasAnyFilter => allergens.isNotEmpty || avoidHiddenSugar || avoidAdditives;
+  bool get hasAnyFilter => allergens.isNotEmpty || avoidHiddenSugar || avoidAdditives || avoidSyubhat;
 
   /// Allergens in the canonical display order.
   List<String> get orderedAllergens => [for (final item in availableAllergens) if (allergens.contains(item)) item];
@@ -60,6 +63,7 @@ class FamilyProfile {
       if (allergens.isNotEmpty) 'Alergi ${orderedAllergens.join(', ')}',
       if (avoidHiddenSugar) 'Rendah Gula',
       if (avoidAdditives) 'Tanpa Aditif',
+      if (avoidSyubhat) 'Halal / Anti-Syubhat',
     ];
     return parts.isEmpty ? 'Belum ada filter' : parts.join(' · ');
   }
@@ -71,6 +75,7 @@ class FamilyProfile {
     SensitivityLevel? sensitivity,
     bool? avoidHiddenSugar,
     bool? avoidAdditives,
+    bool? avoidSyubhat,
     bool? isActive,
   }) {
     return FamilyProfile(
@@ -81,6 +86,7 @@ class FamilyProfile {
       sensitivity: sensitivity ?? this.sensitivity,
       avoidHiddenSugar: avoidHiddenSugar ?? this.avoidHiddenSugar,
       avoidAdditives: avoidAdditives ?? this.avoidAdditives,
+      avoidSyubhat: avoidSyubhat ?? this.avoidSyubhat,
       isActive: isActive ?? this.isActive,
     );
   }
@@ -93,7 +99,7 @@ class FamilyProfile {
         'sensitivity': sensitivity.name,
         'avoidHiddenSugar': avoidHiddenSugar,
         'avoidAdditives': avoidAdditives,
+        'avoidSyubhat': avoidSyubhat,
         'isActive': isActive,
       };
 }
-

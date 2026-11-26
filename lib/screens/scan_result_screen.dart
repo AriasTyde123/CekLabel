@@ -112,7 +112,7 @@ class _ScanResultScreenState extends State<ScanResultScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
               children: [
-                TrafficLightBanner(summary: summary),
+                TrafficLightBanner(summary: summary, isOfflineMode: data.isOfflineMode),
                 const SizedBox(height: 14),
                 ProductInfoCard(
                   result: data,

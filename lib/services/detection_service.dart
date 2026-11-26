@@ -38,6 +38,7 @@ class DetectionService {
     required String rawText,
     required List<Ingredient> dictionary,
     required Set<String> selectedAllergens,
+    bool avoidSyubhat = false,
   }) {
     final text = _splitStatements(normalize(rawText)).direct;
     if (text.isEmpty) return const [];
@@ -46,14 +47,23 @@ class DetectionService {
     for (final ingredient in dictionary) {
       final keyword = _findKeyword(text, ingredient);
       if (keyword == null) continue;
+      final isNonHalal =
+          ingredient.category == IngredientCategory.syubhat && ingredient.riskLevelDefault == RiskLevel.danger;
       results.add(DetectedIngredient(
         ingredientId: ingredient.id,
         ingredientName: ingredient.name,
         matchedKeyword: keyword,
         category: ingredient.category,
         allergenGroup: ingredient.allergenGroup,
-        riskLevel: resolveRisk(ingredient.category, ingredient.allergenGroup, selectedAllergens),
+        riskLevel: resolveRisk(
+          ingredient.category,
+          ingredient.allergenGroup,
+          selectedAllergens,
+          avoidSyubhat: avoidSyubhat,
+          isNonHalal: isNonHalal,
+        ),
         description: ingredient.description,
+        isNonHalal: isNonHalal,
       ));
     }
     return _sorted(results);
@@ -80,11 +90,23 @@ class DetectionService {
     return CrossContamination(allergenGroups: ordered, statement: statement.endsWith('.') ? statement : '$statement.');
   }
 
-  /// Re-evaluates stored ingredients against the current allergen set.
-  List<DetectedIngredient> reevaluate(List<DetectedIngredient> ingredients, Set<String> selectedAllergens) {
+  /// Re-evaluates stored ingredients against the current allergen set and syubhat filter.
+  List<DetectedIngredient> reevaluate(
+    List<DetectedIngredient> ingredients,
+    Set<String> selectedAllergens, {
+    bool avoidSyubhat = false,
+  }) {
     return _sorted([
       for (final item in ingredients)
-        item.copyWith(riskLevel: resolveRisk(item.category, item.allergenGroup, selectedAllergens)),
+        item.copyWith(
+          riskLevel: resolveRisk(
+            item.category,
+            item.allergenGroup,
+            selectedAllergens,
+            avoidSyubhat: avoidSyubhat,
+            isNonHalal: item.isNonHalal,
+          ),
+        ),
     ]);
   }
 
@@ -96,6 +118,8 @@ class DetectionService {
   }) {
     final hasSugar = ingredients.any((item) => item.category == IngredientCategory.sugarAlias);
     final hasAdditive = ingredients.any((item) => _isAdditive(item.category));
+    final hasNonHalal = ingredients.any((item) => item.category == IngredientCategory.syubhat && item.isNonHalal);
+    final hasSyubhatOnly = ingredients.any((item) => item.category == IngredientCategory.syubhat && !item.isNonHalal);
     final presentGroups = ingredients.map((item) => item.allergenGroup).whereType<String>().toSet();
 
     return [
@@ -108,9 +132,14 @@ class DetectionService {
           ];
           final crossReason = cross.isEmpty ? null : 'Kontaminasi ${cross.join(', ')}';
 
-          final danger = [...direct, if (profile.isSevere && crossReason != null) crossReason];
+          final danger = [
+            ...direct,
+            if (profile.isSevere && crossReason != null) crossReason,
+            if (profile.avoidSyubhat && hasNonHalal) 'Non-Halal',
+          ];
           final caution = [
             if (!profile.isSevere && crossReason != null) crossReason,
+            if (profile.avoidSyubhat && !hasNonHalal && hasSyubhatOnly) 'Syubhat',
             if (profile.avoidHiddenSugar && hasSugar) 'Gula Tersembunyi',
             if (profile.avoidAdditives && hasAdditive) 'Zat Aditif',
           ];
@@ -129,7 +158,8 @@ class DetectionService {
   /// Builds the live summary for [result] against the active [profiles].
   ScanSummary summarize(ScanResult result, List<FamilyProfile> profiles) {
     final allergens = {for (final profile in profiles) ...profile.allergens};
-    final ingredients = reevaluate(result.detectedIngredients, allergens);
+    final avoidSyubhat = profiles.any((profile) => profile.avoidSyubhat);
+    final ingredients = reevaluate(result.detectedIngredients, allergens, avoidSyubhat: avoidSyubhat);
     final impacts = evaluateProfiles(
       ingredients: ingredients,
       crossContamination: result.crossContamination,
@@ -143,6 +173,10 @@ class DetectionService {
     ];
     final hasSugar = ingredients.any((item) => item.category == IngredientCategory.sugarAlias);
     final hasAdditives = ingredients.any((item) => _isAdditive(item.category));
+    final hasNonHalal = avoidSyubhat &&
+        ingredients.any((item) => item.category == IngredientCategory.syubhat && item.isNonHalal);
+    final hasSyubhat = avoidSyubhat &&
+        ingredients.any((item) => item.category == IngredientCategory.syubhat && !item.isNonHalal);
     final cross = result.crossContamination;
     final crossRelevant = cross != null &&
         cross.allergenGroups.isNotEmpty &&
@@ -159,7 +193,7 @@ class DetectionService {
       totalDetected: ingredients.length,
       dangerCount: danger.length,
       cautionCount: cautionCount,
-      hasUserAllergen: danger.isNotEmpty,
+      hasUserAllergen: groups.isNotEmpty,
       topRisks: danger.take(3).toList(),
       allergenGroups: groups,
       message: risky == 0 ? 'Tidak ada bahan berisiko terdeteksi' : 'Ditemukan $risky bahan berisiko',
@@ -167,8 +201,10 @@ class DetectionService {
       subtitle: _subtitle(
         level: level,
         total: ingredients.length,
-        hasAllergen: danger.isNotEmpty,
+        hasAllergen: groups.isNotEmpty,
         crossRelevant: crossRelevant,
+        hasNonHalal: hasNonHalal,
+        hasSyubhat: hasSyubhat,
         hasSugar: hasSugar,
         hasAdditives: hasAdditives,
         risky: risky,
@@ -178,6 +214,8 @@ class DetectionService {
       crossContamination: cross,
       hasHiddenSugar: hasSugar,
       hasAdditives: hasAdditives,
+      hasSyubhat: hasSyubhat,
+      hasNonHalal: hasNonHalal,
     );
   }
 
@@ -205,8 +243,17 @@ class DetectionService {
 
   String normalize(String value) => value.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
 
-  RiskLevel resolveRisk(IngredientCategory category, String? allergenGroup, Set<String> selectedAllergens) {
+  RiskLevel resolveRisk(
+    IngredientCategory category,
+    String? allergenGroup,
+    Set<String> selectedAllergens, {
+    bool avoidSyubhat = false,
+    bool isNonHalal = false,
+  }) {
     if (allergenGroup != null && selectedAllergens.contains(allergenGroup)) return RiskLevel.danger;
+    if (avoidSyubhat && category == IngredientCategory.syubhat) {
+      return isNonHalal ? RiskLevel.danger : RiskLevel.caution;
+    }
     if (category.isCautionCategory) return RiskLevel.caution;
     return RiskLevel.safe;
   }
@@ -261,6 +308,8 @@ class DetectionService {
     required int total,
     required bool hasAllergen,
     required bool crossRelevant,
+    required bool hasNonHalal,
+    required bool hasSyubhat,
     required bool hasSugar,
     required bool hasAdditives,
     required int risky,
@@ -270,7 +319,9 @@ class DetectionService {
     }
     final parts = [
       if (hasAllergen) 'alergen utama',
+      if (hasNonHalal) 'bahan non-halal',
       if (crossRelevant) 'risiko kontaminasi silang',
+      if (!hasNonHalal && hasSyubhat) 'bahan syubhat',
       if (hasSugar) 'gula tersembunyi',
       if (hasAdditives) 'zat aditif',
     ];

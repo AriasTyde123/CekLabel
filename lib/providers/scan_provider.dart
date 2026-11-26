@@ -5,17 +5,24 @@ import '../models/family_profile.dart';
 import '../models/ingredient.dart';
 import '../models/risk_level.dart';
 import '../models/scan_result.dart';
+import '../services/ai_analysis_service.dart';
 import '../services/detection_service.dart';
 import '../services/history_service.dart';
 import '../services/ocr_service.dart';
 
 class ScanProvider extends ChangeNotifier {
-  ScanProvider(this._ocrService, this._detectionService, [HistoryService? historyService])
-      : _historyService = historyService ?? HistoryService();
+  ScanProvider(
+    this._ocrService,
+    this._detectionService, [
+    HistoryService? historyService,
+    AiAnalysisService? aiService,
+  ])  : _historyService = historyService ?? HistoryService(),
+        _aiService = aiService;
 
   final OcrService _ocrService;
   final DetectionService _detectionService;
   final HistoryService _historyService;
+  final AiAnalysisService? _aiService;
 
   List<Ingredient> _dictionary = const [];
   List<FamilyProfile> _profiles = const [];
@@ -39,6 +46,7 @@ class ScanProvider extends ChangeNotifier {
       _status == ScanStatus.pickingImage || _status == ScanStatus.recognizing || _status == ScanStatus.analyzing;
 
   Set<String> get _allergens => {for (final profile in _profiles) ...profile.allergens};
+  bool get _avoidSyubhat => _profiles.any((profile) => profile.avoidSyubhat);
 
   void updateDependencies(List<Ingredient> dictionary, List<FamilyProfile> activeProfiles) {
     _dictionary = dictionary;
@@ -99,17 +107,43 @@ class ScanProvider extends ChangeNotifier {
     _setStatus(ScanStatus.recognizing);
     _rawText = await _ocrService.recognizeText(path);
     _setStatus(ScanStatus.analyzing);
-    final detected = _detectionService.detect(
+
+    ScanResult? result;
+    final ai = _aiService;
+    if (ai != null && ai.hasApiKey) {
+      try {
+        final output = await ai.analyze(
+          rawText: _rawText,
+          dictionary: _dictionary,
+          selectedAllergens: _allergens,
+          avoidSyubhat: _avoidSyubhat,
+        );
+        result = ScanResult.create(
+          rawText: _rawText,
+          detected: output.ingredients,
+          productName: output.productName,
+          brand: output.brand,
+          crossContamination: output.crossContamination,
+          isOfflineMode: false,
+        );
+      } catch (_) {
+        // Automatic graceful offline fallback when AI fails, times out, or device is offline.
+      }
+    }
+
+    result ??= ScanResult.create(
       rawText: _rawText,
-      dictionary: _dictionary,
-      selectedAllergens: _allergens,
-    );
-    final result = ScanResult.create(
-      rawText: _rawText,
-      detected: detected,
+      detected: _detectionService.detect(
+        rawText: _rawText,
+        dictionary: _dictionary,
+        selectedAllergens: _allergens,
+        avoidSyubhat: _avoidSyubhat,
+      ),
       productName: _detectionService.guessProductName(_rawText),
       crossContamination: _detectionService.detectCrossContamination(rawText: _rawText, dictionary: _dictionary),
+      isOfflineMode: true,
     );
+
     _history.insert(0, result);
     await _persist();
     _setStatus(ScanStatus.success);

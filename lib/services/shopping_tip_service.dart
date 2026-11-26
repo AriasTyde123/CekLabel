@@ -49,6 +49,8 @@ class ShoppingTipService {
       if (request.crossContaminationGroups.isNotEmpty)
         "Untuk alergi berat, pilih produk yang tidak mencantumkan peringatan 'dapat mengandung "
             "${request.crossContaminationGroups.join(', ').toLowerCase()}'.",
+      if (request.hasSyubhat)
+        'Pilih produk dengan logo Halal resmi dan hindari gelatin, karmin (E120), E471 tanpa keterangan nabati, mirin, atau lemak hewani.',
       if (request.hasHiddenSugar)
         "Pilih varian berlabel 'tanpa gula tambahan' dan pastikan gula tidak berada di urutan awal komposisi.",
       if (request.hasAdditives)
@@ -131,6 +133,7 @@ class ShoppingTipService {
         'Risiko kontaminasi silang: ${list(request.crossContaminationGroups)}\n'
         'Gula tersembunyi: ${request.hasHiddenSugar ? 'ya' : 'tidak'}\n'
         'Zat aditif/pewarna: ${request.hasAdditives ? 'ya' : 'tidak'}\n'
+        'Bahan syubhat/non-halal: ${request.hasSyubhat ? 'ya' : 'tidak'}\n'
         'Bahan berisiko: ${list(request.riskyIngredients)}';
   }
 

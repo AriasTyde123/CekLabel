@@ -84,6 +84,8 @@ class _EmergencyCardScreenState extends State<EmergencyCardScreen> {
   List<String> _dietaryNotes(FamilyProfile profile) => [
         if (profile.avoidHiddenSugar) _isEn ? 'Avoid hidden sugars' : 'Hindari gula tersembunyi',
         if (profile.avoidAdditives) _isEn ? 'Avoid MSG & artificial coloring' : 'Hindari MSG & pewarna sintetis',
+        if (profile.avoidSyubhat)
+          _isEn ? 'Halal only (avoid pork, alcohol & doubtful animal derivatives)' : 'Hindari bahan syubhat / non-halal',
       ];
 
   Future<void> _copyCard(List<FamilyProfile> visibleProfiles) async {

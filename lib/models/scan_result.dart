@@ -19,13 +19,16 @@ class ScanResult {
     this.brand = '',
     this.crossContamination,
     this.isSaved = false,
+    this.isOfflineMode = true,
   });
 
   factory ScanResult.create({
     required String rawText,
     required List<DetectedIngredient> detected,
     String productName = defaultProductName,
+    String brand = '',
     CrossContamination? crossContamination,
+    bool isOfflineMode = true,
   }) {
     final now = DateTime.now();
     int count(RiskLevel level) => detected.where((item) => item.riskLevel == level).length;
@@ -38,8 +41,10 @@ class ScanResult {
       safeCount: count(RiskLevel.safe),
       scannedAt: now,
       createdAt: now,
-      productName: productName,
+      productName: productName.trim().isEmpty ? defaultProductName : productName.trim(),
+      brand: brand.trim(),
       crossContamination: crossContamination,
+      isOfflineMode: isOfflineMode,
     );
   }
 
@@ -62,6 +67,7 @@ class ScanResult {
       brand: json['brand'] as String? ?? '',
       crossContamination: cross is Map ? CrossContamination.fromJson(Map<String, dynamic>.from(cross)) : null,
       isSaved: json['isSaved'] as bool? ?? false,
+      isOfflineMode: json['isOfflineMode'] as bool? ?? true,
     );
   }
 
@@ -78,9 +84,12 @@ class ScanResult {
   final CrossContamination? crossContamination;
   final bool isSaved;
 
+  /// True when analyzed by the local offline dictionary fallback instead of Gemini AI.
+  final bool isOfflineMode;
+
   int get totalDetected => detectedIngredients.length;
 
-  ScanResult copyWith({String? productName, String? brand, bool? isSaved}) => ScanResult(
+  ScanResult copyWith({String? productName, String? brand, bool? isSaved, bool? isOfflineMode}) => ScanResult(
         id: id,
         rawText: rawText,
         detectedIngredients: detectedIngredients,
@@ -93,6 +102,7 @@ class ScanResult {
         brand: brand ?? this.brand,
         crossContamination: crossContamination,
         isSaved: isSaved ?? this.isSaved,
+        isOfflineMode: isOfflineMode ?? this.isOfflineMode,
       );
 
   Map<String, dynamic> toJson() => {
@@ -108,6 +118,7 @@ class ScanResult {
         'brand': brand,
         'crossContamination': crossContamination?.toJson(),
         'isSaved': isSaved,
+        'isOfflineMode': isOfflineMode,
       };
 }
 
@@ -128,6 +139,8 @@ class ScanSummary {
     required this.crossContamination,
     required this.hasHiddenSugar,
     required this.hasAdditives,
+    required this.hasSyubhat,
+    required this.hasNonHalal,
   });
 
   final int totalDetected;
@@ -150,6 +163,8 @@ class ScanSummary {
   final CrossContamination? crossContamination;
   final bool hasHiddenSugar;
   final bool hasAdditives;
+  final bool hasSyubhat;
+  final bool hasNonHalal;
 
   String get headline => overallLevel.headline;
 }

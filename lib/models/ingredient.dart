@@ -1,6 +1,6 @@
 import 'risk_level.dart';
 
-enum IngredientCategory { sugarAlias, allergen, additive, preservative, coloring, sweetener, other }
+enum IngredientCategory { sugarAlias, allergen, additive, preservative, coloring, sweetener, syubhat, other }
 
 extension IngredientCategoryLabel on IngredientCategory {
   String get label => switch (this) {
@@ -10,6 +10,7 @@ extension IngredientCategoryLabel on IngredientCategory {
         IngredientCategory.preservative => 'Pengawet',
         IngredientCategory.coloring => 'Pewarna',
         IngredientCategory.sweetener => 'Pemanis',
+        IngredientCategory.syubhat => 'Syubhat / Non-Halal',
         IngredientCategory.other => 'Lainnya',
       };
 

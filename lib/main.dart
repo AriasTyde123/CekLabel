@@ -7,6 +7,7 @@ import 'providers/profile_provider.dart';
 import 'providers/scan_provider.dart';
 import 'providers/shopping_tip_provider.dart';
 import 'routes.dart';
+import 'services/ai_analysis_service.dart';
 import 'services/detection_service.dart';
 import 'services/dictionary_service.dart';
 import 'services/history_service.dart';
@@ -28,6 +29,10 @@ class CekLabelApp extends StatelessWidget {
       providers: [
         Provider<OcrService>(create: (_) => OcrService(), dispose: (_, service) => service.dispose()),
         Provider<DetectionService>(create: (_) => DetectionService()),
+        Provider<AiAnalysisService>(
+          create: (context) => AiAnalysisService(detectionService: context.read<DetectionService>()),
+          dispose: (_, service) => service.dispose(),
+        ),
         Provider<ShoppingTipService>(create: (_) => ShoppingTipService(), dispose: (_, service) => service.dispose()),
         ChangeNotifierProvider<DictionaryProvider>(create: (_) => DictionaryProvider(DictionaryService())..load()),
         ChangeNotifierProvider<ProfileProvider>(create: (_) => ProfileProvider(ProfileService())..load()),
@@ -36,6 +41,7 @@ class CekLabelApp extends StatelessWidget {
             context.read<OcrService>(),
             context.read<DetectionService>(),
             HistoryService(),
+            context.read<AiAnalysisService>(),
           )..loadHistory(),
           update: (_, dictionary, profile, scan) =>
               scan!..updateDependencies(dictionary.ingredients, profile.activeProfiles),

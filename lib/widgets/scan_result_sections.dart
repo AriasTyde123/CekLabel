@@ -15,11 +15,12 @@ const _dangerColor = Color(0xFFEF4444);
 const _cautionColor = Color(0xFFF59E0B);
 const _safeColor = Color(0xFF10B981);
 
-/// Section 1: Bold Traffic Light status header banner.
+/// Section 1: Bold Traffic Light status header banner with AI / Offline mode badge.
 class TrafficLightBanner extends StatelessWidget {
-  const TrafficLightBanner({super.key, required this.summary});
+  const TrafficLightBanner({super.key, required this.summary, this.isOfflineMode = true});
 
   final ScanSummary summary;
+  final bool isOfflineMode;
 
   @override
   Widget build(BuildContext context) {
@@ -56,15 +57,44 @@ class TrafficLightBanner extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  summary.headline,
-                  style: TextStyle(
-                    color: fg,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.3,
-                    height: 1.1,
-                  ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      summary.headline,
+                      style: TextStyle(
+                        color: fg,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.3,
+                        height: 1.1,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: fg.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isOfflineMode ? Icons.cloud_off_rounded : Icons.auto_awesome_rounded,
+                            size: 12,
+                            color: fg,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            isOfflineMode ? 'Mode Offline' : 'Analisis AI',
+                            style: TextStyle(color: fg, fontSize: 10.5, fontWeight: FontWeight.w800),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -353,6 +383,12 @@ class IngredientBreakdownCard extends StatelessWidget {
     final name = item.ingredientName.trim();
     if (keyword.isNotEmpty && keyword.toLowerCase() != name.toLowerCase()) {
       return '${_titleCase(keyword)} ($name)';
+    }
+    if (item.category == IngredientCategory.syubhat) {
+      final tag = item.isNonHalal ? 'Non-Halal' : 'Syubhat';
+      if (!name.toLowerCase().contains(tag.toLowerCase())) {
+        return '$name ($tag)';
+      }
     }
     if (item.category == IngredientCategory.sugarAlias && !name.toLowerCase().contains('gula')) {
       return '$name (Gula)';

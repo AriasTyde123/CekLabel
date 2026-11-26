@@ -10,6 +10,7 @@ class DetectedIngredient {
     required this.allergenGroup,
     required this.riskLevel,
     required this.description,
+    this.isNonHalal = false,
   });
 
   factory DetectedIngredient.fromJson(Map<String, dynamic> json) => DetectedIngredient(
@@ -20,6 +21,7 @@ class DetectedIngredient {
         allergenGroup: json['allergenGroup'] as String?,
         riskLevel: RiskLevel.values.asNameMap()[json['riskLevel']] ?? RiskLevel.safe,
         description: json['description'] as String? ?? '',
+        isNonHalal: json['isNonHalal'] as bool? ?? false,
       );
 
   final String ingredientId;
@@ -30,6 +32,9 @@ class DetectedIngredient {
   final RiskLevel riskLevel;
   final String description;
 
+  /// True for clearly non-halal ingredients (e.g. pork/lard/alcohol) as opposed to doubtful (syubhat).
+  final bool isNonHalal;
+
   DetectedIngredient copyWith({RiskLevel? riskLevel}) => DetectedIngredient(
         ingredientId: ingredientId,
         ingredientName: ingredientName,
@@ -38,6 +43,7 @@ class DetectedIngredient {
         allergenGroup: allergenGroup,
         riskLevel: riskLevel ?? this.riskLevel,
         description: description,
+        isNonHalal: isNonHalal,
       );
 
   Map<String, dynamic> toJson() => {
@@ -48,5 +54,6 @@ class DetectedIngredient {
         'allergenGroup': allergenGroup,
         'riskLevel': riskLevel.name,
         'description': description,
+        'isNonHalal': isNonHalal,
       };
 }

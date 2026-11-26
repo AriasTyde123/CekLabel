@@ -179,6 +179,13 @@ class _ProfileFormScreenState extends State<ProfileFormScreen> {
               value: _draft.avoidAdditives,
               onChanged: (value) => _update(_draft.copyWith(avoidAdditives: value)),
             ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Filter Bahan Syubhat / Non-Halal'),
+              subtitle: const Text('Tandai babi/lard, alkohol/mirin, gelatin, karmin (E120), E471, dan lemak hewani.'),
+              value: _draft.avoidSyubhat,
+              onChanged: (value) => _update(_draft.copyWith(avoidSyubhat: value)),
+            ),
             if (_filterError != null)
               Padding(
                 padding: const EdgeInsets.only(top: 4),

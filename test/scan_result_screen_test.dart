@@ -128,6 +128,6 @@ void main() {
     await tester.ensureVisible(tipsTitle);
     await tester.pumpAndSettle();
     expect(tipsTitle, findsOneWidget);
-    expect(find.text('Mode Offline'), findsOneWidget);
+    expect(find.text('Mode Offline'), findsWidgets);
   });
 }
