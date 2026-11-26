@@ -95,10 +95,12 @@ void main() {
     final scanProvider = ScanProvider(ocr, DetectionService(), HistoryService());
     final tipProvider = ShoppingTipProvider(ShoppingTipService(apiKey: ''));
 
-    await dictionaryProvider.load();
-    for (final profile in profiles) {
-      await profileProvider.saveProfile(profile);
-    }
+    await tester.runAsync(() async {
+      await dictionaryProvider.load();
+      for (final profile in profiles) {
+        await profileProvider.saveProfile(profile);
+      }
+    });
     scanProvider.updateDependencies(dictionaryProvider.ingredients, profileProvider.activeProfiles);
 
     await tester.pumpWidget(

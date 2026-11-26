@@ -34,7 +34,7 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _ownsCamera = widget.cameraService == null;
     _camera = widget.cameraService ?? CameraService();
-    _initCamera();
+    _initCamera(updateInitialState: false);
   }
 
   @override
@@ -55,11 +55,16 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  Future<void> _initCamera() async {
-    setState(() {
+  Future<void> _initCamera({bool updateInitialState = true}) async {
+    if (updateInitialState && mounted) {
+      setState(() {
+        _cameraLoading = true;
+        _cameraError = null;
+      });
+    } else {
       _cameraLoading = true;
       _cameraError = null;
-    });
+    }
     try {
       await _camera.initialize();
       if (!mounted) return;
