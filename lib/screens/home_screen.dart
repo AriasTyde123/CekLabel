@@ -2,26 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/risk_level.dart';
-import '../models/scan_result.dart';
 import '../providers/dictionary_provider.dart';
 import '../providers/preference_provider.dart';
 import '../providers/scan_provider.dart';
 import '../routes.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/home_cards.dart';
+import '../widgets/home_scan_rows.dart';
 import '../widgets/loading_indicator.dart';
-import '../widgets/risk_badge.dart';
-import '../widgets/summary_card.dart';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.onSelectTab, this.scrollController});
+
+  final ValueChanged<HomeTab>? onSelectTab;
+  final ScrollController? scrollController;
 
   @override
   Widget build(BuildContext context) {
     final dictionary = context.watch<DictionaryProvider>();
     final preference = context.watch<PreferenceProvider>();
     final scan = context.watch<ScanProvider>();
-    final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
 
     if (dictionary.status == DictionaryStatus.loading || dictionary.status == DictionaryStatus.initial) {
       return const Scaffold(body: LoadingIndicator(message: 'Memuat kamus bahan...'));
@@ -37,237 +37,341 @@ class HomeScreen extends StatelessWidget {
       );
     }
 
-    final lastResult = scan.result;
-    final lastSummary = lastResult == null ? null : scan.summarize(lastResult);
-    final greeting = preference.savedUserName.isEmpty ? 'Halo!' : 'Halo, ${preference.savedUserName}!';
+    final name = preference.savedUserName;
+    final allergens = preference.savedAllergens;
+    final activeScrollController = scrollController ?? PrimaryScrollController.maybeOf(context);
+    final history = scan.history;
+    void open(String route) => Navigator.pushNamed(context, route);
+    void editProfile() => onSelectTab != null ? onSelectTab!(HomeTab.profile) : open(AppRoutes.preferences);
+    void startScan() => open(AppRoutes.scan);
+    void openSafe() => onSelectTab != null ? onSelectTab!(HomeTab.safeList) : open(AppRoutes.safeList);
+    void openHistory() => onSelectTab != null ? onSelectTab!(HomeTab.history) : open(AppRoutes.history);
+    void exampleProfile() => _showPanel(
+          context,
+          icon: Icons.group_outlined,
+          title: 'Profil keluarga contoh',
+          message: 'Anak dan Ayah adalah contoh tampilan. Pemindaian hanya memakai alergen dari profil yang Anda atur.',
+          onEdit: editProfile,
+        );
+    void exampleScan() => _showPanel(
+          context,
+          icon: Icons.science_outlined,
+          title: 'Contoh hasil pindai',
+          message: 'Produk dan status ini hanya ilustrasi, bukan hasil pemindaian atau rekomendasi keamanan pangan.',
+        );
 
     return Scaffold(
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
+        bottom: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: ListView(
+              controller: scrollController,
+              primary: scrollController == null,
+              padding: const EdgeInsets.fromLTRB(20, 22, 20, 14),
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.qr_code_scanner_rounded, size: 17, color: homeGreen),
+                              SizedBox(width: 6),
+                              Text(
+                                'CEKLABEL',
+                                style: TextStyle(
+                                  color: homeGreen, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            'Halo, ${name.isEmpty ? 'Bunda' : name}!',
+                            style: const TextStyle(
+                              color: homeInk, fontSize: 31, height: 1.16, fontWeight: FontWeight.w800, letterSpacing: -1.6,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    IconButton.outlined(
+                      tooltip: 'Notifikasi',
+                      onPressed: () => _showPanel(
+                        context,
+                        icon: Icons.notifications_none_rounded,
+                        title: 'Notifikasi',
+                        message: 'Belum ada notifikasi baru.',
+                      ),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: homeInk,
+                        side: const BorderSide(color: homeBorder),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      icon: const Icon(Icons.notifications_none_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    const Expanded(child: _SectionTitle('Profil Keluarga')),
+                    const SizedBox(width: 6),
+                    _CaptionTag(name.isEmpty ? 'Contoh profil' : '1 profil aktif'),
+                  ],
+                ),
+                const SizedBox(height: 9),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      if (name.isEmpty) ...[
+                        HomeProfileChip(
+                          title: 'Anak',
+                          detail: 'Alergi Susu',
+                          image: 'assets/home/child.png',
+                          onTap: exampleProfile,
+                        ),
+                        const SizedBox(width: 7),
+                        HomeProfileChip(
+                          title: 'Ayah',
+                          detail: 'Rendah Gula',
+                          image: 'assets/home/father.png',
+                          onTap: exampleProfile,
+                        ),
+                      ] else
+                        HomeProfileChip(title: name, detail: '${allergens.length} alergen', onTap: editProfile),
+                      const SizedBox(width: 7),
+                      OutlinedButton.icon(
+                        onPressed: editProfile,
+                        icon: Icon(name.isEmpty ? Icons.add_rounded : Icons.edit_outlined, size: 17),
+                        label: Text(name.isEmpty ? 'Tambah' : 'Atur'),
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: homeGreen,
+                          minimumSize: const Size(0, 50),
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          side: const BorderSide(color: Color(0xFFB9D8CB)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                          textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 17),
+                HomeScanHero(onScan: startScan),
+                const SizedBox(height: 17),
+                const _SectionTitle('Akses Cepat'),
+                const SizedBox(height: 8),
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: HomeQuickCard(
+                          icon: Icons.bookmark_rounded,
+                          title: 'Daftar Aman',
+                          subtitle: 'Hasil cek berisiko rendah',
+                          onTap: openSafe,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: HomeQuickCard(
+                          icon: Icons.medical_services_rounded,
+                          title: 'Kartu Darurat Alergi',
+                          subtitle: 'Info alergi siap ditunjukkan',
+                          emergency: true,
+                          onTap: () => _showPanel(
+                            context,
+                            icon: Icons.medical_services_outlined,
+                            title: 'Kartu Darurat Alergi',
+                            message: allergens.isEmpty
+                                ? 'Tambahkan nama dan alergen di preferensi untuk mengisi kartu ini.'
+                                : 'Tunjukkan informasi ini kepada orang yang membantu atau petugas kesehatan.',
+                            details: allergens.isEmpty ? null : '$name\nAlergen: ${allergens.join(', ')}',
+                            onEdit: editProfile,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 11),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 5,
+                        runSpacing: 3,
+                        children: [
+                          const _SectionTitle('Pindaian Terakhir'),
+                          if (history.isEmpty) const _CaptionTag('Contoh'),
+                        ],
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: openHistory,
+                      style: TextButton.styleFrom(
+                        foregroundColor: homeGreen,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11),
+                      ),
+                      child: const Row(
+                        children: [Text('Lihat semua'), Icon(Icons.chevron_right_rounded, size: 15)],
+                      ),
+                    ),
+                  ],
+                ),
+                HomeScanRows(
+                  rows: history.isEmpty
+                      ? [
+                          HomeScanRow(
+                            title: 'Oat Gulung Organik',
+                            subtitle: 'Hari ini, 09.42',
+                            risk: RiskLevel.safe,
+                            image: 'assets/home/oats.webp',
+                            onTap: exampleScan,
+                          ),
+                          HomeScanRow(
+                            title: 'Biskuit Kelapa',
+                            subtitle: 'Kemarin, 17.20',
+                            risk: RiskLevel.caution,
+                            image: 'assets/home/biscuits.webp',
+                            onTap: exampleScan,
+                          ),
+                          HomeScanRow(
+                            title: 'Susu Cokelat Kemasan',
+                            subtitle: 'Kemarin, 14.08',
+                            risk: RiskLevel.danger,
+                            image: 'assets/home/milk.webp',
+                            onTap: exampleScan,
+                          ),
+                        ]
+                      : [
+                          for (final result in history.take(3))
+                            HomeScanRow.result(
+                              result,
+                              context: context,
+                              risk: scan.summarize(result).overallLevel,
+                              onTap: () => Navigator.pushNamed(context, AppRoutes.scanResult, arguments: result),
+                            ),
+                        ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      bottomNavigationBar: onSelectTab != null
+          ? null
+          : HomeNav(
+              onHome: () {
+                if (activeScrollController != null && activeScrollController.hasClients) {
+                  activeScrollController.animateTo(
+                    0,
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOut,
+                  );
+                }
+              },
+              onHistory: openHistory,
+              onScan: startScan,
+              onSafe: openSafe,
+              onProfile: editProfile,
+            ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Text(
+        text,
+        style: const TextStyle(color: homeInk, fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -.4),
+      );
+}
+
+class _CaptionTag extends StatelessWidget {
+  const _CaptionTag(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        decoration: BoxDecoration(color: const Color(0xFFE9F4EE), borderRadius: BorderRadius.circular(6)),
+        child: Text(
+          text.toUpperCase(),
+          style: const TextStyle(color: Color(0xFF47705E), fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: .45),
+        ),
+      );
+}
+
+void _showPanel(
+  BuildContext context, {
+  required IconData icon,
+  required String title,
+  required String message,
+  String? details,
+  VoidCallback? onEdit,
+}) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    showDragHandle: true,
+    builder: (sheetContext) => SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(14)),
-                  child: Icon(Icons.document_scanner_rounded, color: scheme.onPrimaryContainer),
-                ),
-                const SizedBox(width: 12),
-                Text('CekLabel', style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-              ],
-            ),
-            const SizedBox(height: 28),
-            Text(greeting, style: textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8),
-            Text(
-              'Foto label komposisi makanan, dan kami terjemahkan istilah rumitnya dalam hitungan detik. '
-              'Semua diproses di perangkatmu, tanpa internet.',
-              style: textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: SummaryCard(
-                    icon: Icons.menu_book_rounded,
-                    value: '${dictionary.ingredients.length}',
-                    label: 'Bahan di kamus',
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: SummaryCard(
-                    icon: Icons.shield_outlined,
-                    value: '${preference.savedAllergens.length}',
-                    label: 'Alergen diwaspadai',
-                    color: Colors.red,
-                  ),
-                ),
-              ],
-            ),
+            Icon(icon, size: 28, color: homeGreen),
             const SizedBox(height: 12),
-            _LastScanCard(
-              message: lastSummary?.message,
-              level: lastSummary?.overallLevel,
-              total: lastSummary?.totalDetected,
-              onTap: lastResult == null
-                  ? null
-                  : () => Navigator.pushNamed(context, AppRoutes.scanResult, arguments: lastResult),
-            ),
-            if (scan.history.length > 1) ...[
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Riwayat Pindaian (${scan.history.length})',
-                    style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+            Text(title, style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            Text(message),
+            if (details != null) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: Card(
+                  color: const Color(0xFFFDE9E8),
+                  elevation: 0,
+                  margin: EdgeInsets.zero,
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Text(details, style: const TextStyle(fontWeight: FontWeight.w700, height: 1.5)),
                   ),
-                  TextButton(
-                    onPressed: () => context.read<ScanProvider>().clearHistory(),
-                    child: const Text('Hapus Riwayat', style: TextStyle(color: Colors.red)),
-                  ),
-                ],
+                ),
               ),
-              const SizedBox(height: 6),
-              for (final hist in scan.history.skip(1).take(3)) ...[
-                _HistoryItemTile(
-                  result: hist,
-                  summary: scan.summarize(hist),
-                  onTap: () => Navigator.pushNamed(context, AppRoutes.scanResult, arguments: hist),
-                ),
-                const SizedBox(height: 6),
-              ],
             ],
-            const SizedBox(height: 28),
-            FilledButton.icon(
-              onPressed: () => Navigator.pushNamed(context, AppRoutes.scan),
-              icon: const Icon(Icons.camera_alt_rounded),
-              label: const Text('Pindai Label'),
-              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => Navigator.pushNamed(context, AppRoutes.dictionary),
-                    icon: const Icon(Icons.search_rounded),
-                    label: const Text('Cari Bahan'),
-                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => Navigator.pushNamed(context, AppRoutes.preferences),
-                    icon: const Icon(Icons.tune_rounded),
-                    label: const Text('Atur Preferensi'),
-                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-                  ),
-                ),
-              ],
-            ),
+            if (onEdit != null) ...[
+              const SizedBox(height: 15),
+              FilledButton.tonal(
+                onPressed: () {
+                  Navigator.pop(sheetContext);
+                  onEdit();
+                },
+                child: const Text('Atur preferensi'),
+              ),
+            ],
           ],
         ),
       ),
-    );
-  }
-}
-
-class _LastScanCard extends StatelessWidget {
-  const _LastScanCard({
-    required this.message,
-    required this.level,
-    required this.total,
-    this.onTap,
-  });
-
-  final String? message;
-  final RiskLevel? level;
-  final int? total;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    final hasScan = message != null;
-    final color = hasScan ? RiskStyle.color(level!) : scheme.outline;
-
-    return Card(
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      color: scheme.surfaceContainerLow,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Icon(hasScan ? RiskStyle.icon(level!) : Icons.history_rounded, color: color, size: 30),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Pindaian terakhir', style: textTheme.labelMedium?.copyWith(color: scheme.outline)),
-                    const SizedBox(height: 2),
-                    Text(
-                      hasScan ? message! : 'Belum ada pindaian',
-                      style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    if (hasScan) Text('$total bahan dikenali', style: textTheme.bodySmall),
-                  ],
-                ),
-              ),
-              if (hasScan) Icon(Icons.chevron_right_rounded, color: scheme.outline),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _HistoryItemTile extends StatelessWidget {
-  const _HistoryItemTile({
-    required this.result,
-    required this.summary,
-    required this.onTap,
-  });
-
-  final ScanResult result;
-  final ScanSummary summary;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    final color = RiskStyle.color(summary.overallLevel);
-
-    return Card(
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      color: scheme.surfaceContainerLow,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          child: Row(
-            children: [
-              Icon(RiskStyle.icon(summary.overallLevel), color: color, size: 22),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      summary.message,
-                      style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                    ),
-                    Text(
-                      '${result.totalDetected} bahan • ${_formatTime(result.scannedAt)}',
-                      style: textTheme.bodySmall?.copyWith(color: scheme.outline),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right_rounded, size: 20, color: scheme.outline),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _formatTime(DateTime time) {
-    final hour = time.hour.toString().padLeft(2, '0');
-    final minute = time.minute.toString().padLeft(2, '0');
-    return '$hour:$minute';
-  }
+    ),
+  );
 }

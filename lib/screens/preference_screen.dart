@@ -7,7 +7,9 @@ import '../widgets/loading_indicator.dart';
 import '../widgets/preference_form.dart';
 
 class PreferenceScreen extends StatefulWidget {
-  const PreferenceScreen({super.key});
+  const PreferenceScreen({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   State<PreferenceScreen> createState() => _PreferenceScreenState();
@@ -61,10 +63,20 @@ class _PreferenceScreenState extends State<PreferenceScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PreferenceProvider>();
+    if (_nameController.text != provider.userName) {
+      _nameController.value = TextEditingValue(
+        text: provider.userName,
+        selection: TextSelection.collapsed(offset: provider.userName.length),
+      );
+    }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Atur Preferensi')),
+      appBar: AppBar(
+        automaticallyImplyLeading: !widget.embedded,
+        title: const Text('Atur Preferensi'),
+      ),
       body: SafeArea(
+        bottom: !widget.embedded,
         child: provider.status == PreferenceStatus.loading
             ? const LoadingIndicator()
             : ListView(

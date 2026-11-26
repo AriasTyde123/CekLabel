@@ -1,107 +1,134 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../models/risk_level.dart';
+import '../providers/preference_provider.dart';
 import '../providers/scan_provider.dart';
 import '../routes.dart';
-import '../widgets/empty_state.dart';
-import '../widgets/loading_indicator.dart';
+import '../widgets/scanner_view.dart';
 
-class ScanScreen extends StatelessWidget {
+class ScanScreen extends StatefulWidget {
   const ScanScreen({super.key});
+
+  @override
+  State<ScanScreen> createState() => _ScanScreenState();
+}
+
+class _ScanScreenState extends State<ScanScreen> {
+  bool _barcode = false;
+  bool _flash = false;
 
   @override
   Widget build(BuildContext context) {
     final scan = context.watch<ScanProvider>();
+    final profile = context.watch<PreferenceProvider>().savedUserName;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Pindai Label')),
-      body: SafeArea(child: _buildBody(context, scan)),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: const Color(0xFF091813),
+      ),
+      child: Scaffold(
+        backgroundColor: const Color(0xFF091813),
+        body: ScannerView(
+          barcode: _barcode,
+          flash: _flash,
+          busy: scan.isBusy,
+          hasProfile: profile.isNotEmpty,
+          hint: scan.isBusy
+              ? _busyMessage(scan.status)
+              : _barcode
+                  ? 'Arahkan kamera ke barcode di kemasan'
+                  : 'Arahkan kamera ke daftar komposisi di kemasan',
+          error: !_barcode && scan.status == ScanStatus.error ? scan.errorMessage : null,
+          onClose: () => Navigator.maybePop(context),
+          onMode: (barcode) => setState(() => _barcode = barcode),
+          onFlash: () => setState(() => _flash = !_flash),
+          onHelp: () => _showInfo(
+            icon: Icons.help_outline_rounded,
+            title: 'Cara memindai label',
+            message: 'Ratakan kemasan, hindari pantulan cahaya, dan pastikan teks komposisi terlihat jelas. '
+                'Bingkai dan lampu kilat di layar ini adalah simulasi. Ketuk tombol foto untuk membuka kamera perangkat.',
+          ),
+          onGallery: () => _startScan(ScanSource.gallery),
+          onCapture: () => _startScan(ScanSource.camera),
+          onProfiles: () => _showInfo(
+            icon: Icons.group_outlined,
+            title: 'Profil yang dicek',
+            message: profile.isEmpty
+                ? 'Anak dan Ayah adalah contoh tampilan. Tambahkan profil di pengaturan untuk memakai preferensi alergen Anda.'
+                : 'Pemindaian memakai preferensi alergen dari profil $profile.',
+          ),
+          onRetry: scan.reset,
+        ),
+      ),
     );
   }
 
-  Widget _buildBody(BuildContext context, ScanProvider scan) {
-    if (scan.isBusy) return LoadingIndicator(message: _busyMessage(scan.status));
-    if (scan.status == ScanStatus.error) {
-      return EmptyState(
-        icon: Icons.image_not_supported_outlined,
-        title: 'Pemindaian gagal',
-        message: scan.errorMessage,
-        actionLabel: 'Coba Lagi',
-        onAction: () => context.read<ScanProvider>().reset(),
+  Future<void> _startScan(ScanSource source) async {
+    if (_barcode) {
+      await _showInfo(
+        icon: Icons.qr_code_scanner_rounded,
+        title: 'Pemindaian barcode belum tersedia',
+        message: 'Gunakan mode komposisi untuk membaca daftar bahan pada kemasan.',
+        onComposition: () => setState(() => _barcode = false),
       );
+      return;
     }
-    return _ScanIdle(onScan: (source) => _startScan(context, source));
-  }
-
-  Future<void> _startScan(BuildContext context, ScanSource source) async {
     final navigator = Navigator.of(context);
     final result = await context.read<ScanProvider>().scan(source);
-    if (result != null) navigator.pushNamed(AppRoutes.scanResult, arguments: result);
+    if (result != null && mounted && ModalRoute.isCurrentOf(context) == true) {
+      navigator.pushNamed(AppRoutes.scanResult, arguments: result);
+    }
   }
 
   String _busyMessage(ScanStatus status) => switch (status) {
-        ScanStatus.pickingImage => 'Membuka kamera...',
-        ScanStatus.recognizing => 'Membaca teks pada label...',
-        _ => 'Mencocokkan dengan kamus bahan...',
+        ScanStatus.pickingImage => 'Membuka pemilih gambar…',
+        ScanStatus.recognizing => 'Membaca teks pada label…',
+        _ => 'Mencocokkan dengan kamus bahan…',
       };
-}
 
-class _ScanIdle extends StatelessWidget {
-  const _ScanIdle({required this.onScan});
-
-  final ValueChanged<ScanSource> onScan;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          Expanded(
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: scheme.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: scheme.outlineVariant, width: 2),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.receipt_long_rounded, size: 72, color: scheme.primary),
-                  const SizedBox(height: 16),
-                  Text('Arahkan ke daftar komposisi', style: textTheme.titleMedium),
-                  const SizedBox(height: 6),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Text(
-                      'Pastikan teks terang, lurus, dan tidak buram agar terbaca lebih dari 80%.',
-                      textAlign: TextAlign.center,
-                      style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
-                    ),
+  Future<void> _showInfo({
+    required IconData icon,
+    required String title,
+    required String message,
+    VoidCallback? onComposition,
+  }) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: const Color(0xFF10271F),
+      builder: (sheetContext) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(22, 0, 22, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, size: 28, color: const Color(0xFFA0FAD0)),
+              const SizedBox(height: 12),
+              Text(title, style: const TextStyle(color: Color(0xFFF3FCF7), fontSize: 21, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 6),
+              Text(message, style: const TextStyle(color: Color(0xFFC0D8CD), fontSize: 14, height: 1.5)),
+              if (onComposition != null) ...[
+                const SizedBox(height: 14),
+                FilledButton(
+                  onPressed: () {
+                    Navigator.pop(sheetContext);
+                    onComposition();
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: const Color(0xFF042C20),
                   ),
-                ],
-              ),
-            ),
+                  child: const Text('Kembali ke komposisi'),
+                ),
+              ],
+            ],
           ),
-          const SizedBox(height: 20),
-          FilledButton.icon(
-            onPressed: () => onScan(ScanSource.camera),
-            icon: const Icon(Icons.camera_alt_rounded),
-            label: const Text('Ambil Foto'),
-            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: () => onScan(ScanSource.gallery),
-            icon: const Icon(Icons.photo_library_outlined),
-            label: const Text('Pilih dari Galeri'),
-            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-          ),
-        ],
+        ),
       ),
     );
   }

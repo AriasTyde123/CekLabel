@@ -38,33 +38,6 @@ class ScanResult {
   final DateTime createdAt;
 
   int get totalDetected => detectedIngredients.length;
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'rawText': rawText,
-        'detectedIngredients': detectedIngredients.map((item) => item.toJson()).toList(),
-        'dangerCount': dangerCount,
-        'cautionCount': cautionCount,
-        'safeCount': safeCount,
-        'scannedAt': scannedAt.toIso8601String(),
-        'createdAt': createdAt.toIso8601String(),
-      };
-
-  factory ScanResult.fromJson(Map<String, dynamic> json) {
-    return ScanResult(
-      id: json['id'] as String,
-      rawText: json['rawText'] as String,
-      detectedIngredients: List.unmodifiable(
-        (json['detectedIngredients'] as List? ?? const [])
-            .map((item) => DetectedIngredient.fromJson(item as Map<String, dynamic>)),
-      ),
-      dangerCount: json['dangerCount'] as int? ?? 0,
-      cautionCount: json['cautionCount'] as int? ?? 0,
-      safeCount: json['safeCount'] as int? ?? 0,
-      scannedAt: DateTime.tryParse(json['scannedAt'] as String? ?? '') ?? DateTime.now(),
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
-    );
-  }
 }
 
 class ScanSummary {

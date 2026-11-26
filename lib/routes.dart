@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 
 import 'models/scan_result.dart';
 import 'screens/dictionary_screen.dart';
-import 'screens/home_screen.dart';
 import 'screens/ingredient_detail_screen.dart';
+import 'screens/main_shell_screen.dart';
 import 'screens/preference_screen.dart';
+import 'screens/scan_collection_screen.dart';
 import 'screens/scan_result_screen.dart';
 import 'screens/scan_screen.dart';
 
@@ -15,6 +16,8 @@ class AppRoutes {
   static const String dictionary = '/dictionary';
   static const String dictionaryDetail = '/dictionary/detail';
   static const String preferences = '/preferences';
+  static const String history = '/history';
+  static const String safeList = '/safe-list';
 
   static Route<dynamic> generate(RouteSettings settings) {
     final Widget page = switch (settings.name) {
@@ -25,7 +28,9 @@ class AppRoutes {
           ingredientId: settings.arguments is String ? settings.arguments as String : null,
         ),
       preferences => const PreferenceScreen(),
-      _ => const HomeScreen(),
+      history => const ScanCollectionScreen(),
+      safeList => const ScanCollectionScreen(safeOnly: true),
+      _ => const MainShellScreen(),
     };
     return MaterialPageRoute<void>(builder: (_) => page, settings: settings);
   }

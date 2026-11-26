@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
 import 'providers/dictionary_provider.dart';
@@ -27,7 +28,7 @@ class CekLabelApp extends StatelessWidget {
         ChangeNotifierProvider<DictionaryProvider>(create: (_) => DictionaryProvider(DictionaryService())..load()),
         ChangeNotifierProvider<PreferenceProvider>(create: (_) => PreferenceProvider(PreferenceService())..load()),
         ChangeNotifierProxyProvider2<DictionaryProvider, PreferenceProvider, ScanProvider>(
-          create: (context) => ScanProvider(context.read<OcrService>(), context.read<DetectionService>())..loadHistory(),
+          create: (context) => ScanProvider(context.read<OcrService>(), context.read<DetectionService>()),
           update: (_, dictionary, preference, scan) =>
               scan!..updateDependencies(dictionary.ingredients, preference.savedAllergens),
         ),
@@ -35,9 +36,13 @@ class CekLabelApp extends StatelessWidget {
       child: MaterialApp(
         title: 'CekLabel',
         debugShowCheckedModeBanner: false,
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
+        supportedLocales: const [Locale('id')],
         theme: ThemeData(
           useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E7D5B)),
+          fontFamily: 'Plus Jakarta Sans',
+          scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF10B981)),
         ),
         initialRoute: AppRoutes.home,
         onGenerateRoute: AppRoutes.generate,
