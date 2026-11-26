@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-const _mint = Color(0xFF10B981);
 const _white = Color(0xFFF3FCF7);
 const _glass = Color(0xDB13251F);
 const _outline = Color(0x47E2F8EC);
@@ -10,13 +9,14 @@ const _outline = Color(0x47E2F8EC);
 class ScannerView extends StatelessWidget {
   const ScannerView({
     super.key,
-    required this.barcode,
+    required this.preview,
+    required this.cameraReady,
+    required this.cameraLoading,
     required this.flash,
     required this.busy,
-    required this.hasProfile,
+    required this.activeProfileCount,
     required this.hint,
     required this.onClose,
-    required this.onMode,
     required this.onFlash,
     required this.onHelp,
     required this.onGallery,
@@ -24,34 +24,45 @@ class ScannerView extends StatelessWidget {
     required this.onProfiles,
     required this.onRetry,
     this.error,
+    this.secondaryActionLabel,
+    this.onSecondaryAction,
   });
 
-  final bool barcode;
+  final Widget? preview;
+  final bool cameraReady;
+  final bool cameraLoading;
   final bool flash;
   final bool busy;
-  final bool hasProfile;
+  final int activeProfileCount;
   final String hint;
   final String? error;
+  final String? secondaryActionLabel;
   final VoidCallback onClose;
-  final ValueChanged<bool> onMode;
   final VoidCallback onFlash;
   final VoidCallback onHelp;
   final VoidCallback onGallery;
   final VoidCallback onCapture;
   final VoidCallback onProfiles;
   final VoidCallback onRetry;
+  final VoidCallback? onSecondaryAction;
 
   @override
   Widget build(BuildContext context) {
+    final statusLabel = cameraReady
+        ? 'KAMERA AKTIF'
+        : cameraLoading
+            ? 'MEMBUKA KAMERA'
+            : 'PINDAI KOMPOSISI';
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final height = math.max(500.0, constraints.maxHeight);
         final compact = height < 650;
         final width = constraints.maxWidth;
         final frame = Rect.fromCenter(
-          center: Offset(width / 2, height * (barcode ? .62 : .515)),
-          width: math.min(width * .81, 370.0),
-          height: math.min(height * (barcode ? .21 : compact ? .38 : .42), barcode ? 165.0 : 350.0),
+          center: Offset(width / 2, height * .49),
+          width: math.min(width * .84, 380.0),
+          height: math.min(height * (compact ? .40 : .45), 370.0),
         );
         return SingleChildScrollView(
           child: SizedBox(
@@ -60,38 +71,33 @@ class ScannerView extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                ColorFiltered(
-                  colorFilter: ColorFilter.matrix([
-                    1, 0, 0, 0, flash ? 22.0 : -5.0,
-                    0, 1, 0, 0, flash ? 22.0 : -5.0,
-                    0, 0, 1, 0, flash ? 22.0 : -5.0,
-                    0, 0, 0, 1, 0,
-                  ]),
-                  child: Image.asset(
-                    'assets/scanner/label-viewfinder.webp',
-                    fit: BoxFit.cover,
-                    excludeFromSemantics: true,
-                  ),
-                ),
+                if (preview != null)
+                  ClipRect(child: preview!)
+                else
+                  const ColoredBox(color: Color(0xFF091813)),
                 const DecoratedBox(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Color(0xF506120F), Color(0x9C06120F), Color(0x0006120F),
-                        Color(0x0006120F), Color(0x7D06120F), Color(0xFB06120F),
+                        Color(0xD906120F),
+                        Color(0x6606120F),
+                        Color(0x0006120F),
+                        Color(0x0006120F),
+                        Color(0x7D06120F),
+                        Color(0xEB06120F),
                       ],
-                      stops: [0, .18, .37, .63, .8, 1],
+                      stops: [0, .18, .35, .65, .8, 1],
                     ),
                   ),
                 ),
                 IgnorePointer(child: CustomPaint(painter: _ViewfinderPainter(frame))),
-                if (height >= 570)
+                if (height >= 560)
                   Positioned(
                     left: frame.left,
                     bottom: height - frame.top + 9,
-                    child: _FrameCaption(barcode ? 'PRATINJAU MODE' : 'AREA PINDAI'),
+                    child: const _FrameCaption('AREA KOMPOSISI'),
                   ),
                 Positioned(
                   top: frame.bottom + (compact ? 9 : 15),
@@ -111,13 +117,36 @@ class ScannerView extends StatelessWidget {
                           hint,
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: _white, fontSize: compact ? 11 : 12, height: 1.45, fontWeight: FontWeight.w700,
+                            color: _white,
+                            fontSize: compact ? 11 : 12,
+                            height: 1.45,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
                     ),
                   ),
                 ),
+                if (cameraLoading && error == null)
+                  Positioned.fromRect(
+                    rect: frame.deflate(9),
+                    child: const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox.square(
+                            dimension: 28,
+                            child: CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xFF62E5AD)),
+                          ),
+                          SizedBox(height: 10),
+                          Text(
+                            'Menyiapkan kamera…',
+                            style: TextStyle(color: _white, fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 if (error != null)
                   Positioned.fromRect(
                     rect: frame.deflate(9),
@@ -126,21 +155,37 @@ class ScannerView extends StatelessWidget {
                         color: const Color(0xFA112B22),
                         borderRadius: BorderRadius.circular(16),
                         child: SingleChildScrollView(
-                          padding: const EdgeInsets.all(13),
+                          padding: const EdgeInsets.all(14),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.image_not_supported_outlined, color: Color(0xFF9FF0C9)),
-                              const SizedBox(height: 6),
+                              const Icon(Icons.photo_camera_outlined, color: Color(0xFF9FF0C9), size: 26),
+                              const SizedBox(height: 8),
                               Text(
                                 error!,
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(color: _white, fontSize: 13, fontWeight: FontWeight.w600),
                               ),
-                              TextButton(
-                                onPressed: onRetry,
-                                style: TextButton.styleFrom(foregroundColor: const Color(0xFF9FF0C9)),
-                                child: const Text('Coba lagi'),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                alignment: WrapAlignment.center,
+                                children: [
+                                  TextButton(
+                                    onPressed: onRetry,
+                                    style: TextButton.styleFrom(foregroundColor: const Color(0xFF9FF0C9)),
+                                    child: const Text('Coba lagi'),
+                                  ),
+                                  if (secondaryActionLabel != null && onSecondaryAction != null)
+                                    FilledButton.tonal(
+                                      onPressed: onSecondaryAction,
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: const Color(0xFF1A4737),
+                                        foregroundColor: _white,
+                                      ),
+                                      child: Text(secondaryActionLabel!),
+                                    ),
+                                ],
                               ),
                             ],
                           ),
@@ -156,17 +201,13 @@ class ScannerView extends StatelessWidget {
                     bottom: false,
                     child: Padding(
                       padding: EdgeInsets.fromLTRB(width < 360 ? 14 : 22, compact ? 10 : 18, width < 360 ? 14 : 22, 0),
-                      child: Column(
-                        children: [
-                          _ScannerTop(
-                            flash: flash,
-                            onClose: onClose,
-                            onFlash: busy ? null : onFlash,
-                            onHelp: busy ? null : onHelp,
-                          ),
-                          SizedBox(height: compact ? 12 : 23),
-                          _ModeSwitch(barcode: barcode, onSelected: busy ? null : onMode),
-                        ],
+                      child: _ScannerTop(
+                        statusLabel: statusLabel,
+                        cameraReady: cameraReady,
+                        flash: flash,
+                        onClose: onClose,
+                        onFlash: busy || !cameraReady ? null : onFlash,
+                        onHelp: busy ? null : onHelp,
                       ),
                     ),
                   ),
@@ -181,7 +222,7 @@ class ScannerView extends StatelessWidget {
                       padding: EdgeInsets.fromLTRB(width < 360 ? 14 : 22, 0, width < 360 ? 14 : 22, compact ? 13 : 23),
                       child: _ActionBar(
                         busy: busy,
-                        hasProfile: hasProfile,
+                        activeProfileCount: activeProfileCount,
                         onGallery: busy ? null : onGallery,
                         onCapture: busy ? null : onCapture,
                         onProfiles: busy ? null : onProfiles,
@@ -199,8 +240,17 @@ class ScannerView extends StatelessWidget {
 }
 
 class _ScannerTop extends StatelessWidget {
-  const _ScannerTop({required this.flash, required this.onClose, required this.onFlash, required this.onHelp});
+  const _ScannerTop({
+    required this.statusLabel,
+    required this.cameraReady,
+    required this.flash,
+    required this.onClose,
+    required this.onFlash,
+    required this.onHelp,
+  });
 
+  final String statusLabel;
+  final bool cameraReady;
   final bool flash;
   final VoidCallback onClose;
   final VoidCallback? onFlash;
@@ -216,20 +266,33 @@ class _ScannerTop extends StatelessWidget {
             child: _RoundIcon(icon: Icons.close_rounded, label: 'Tutup pemindai', onPressed: onClose),
           ),
         ),
-        const Flexible(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.circle, size: 6, color: Color(0xFF62E5AD)),
-              SizedBox(width: 5),
-              Flexible(
-                child: Text(
-                  'SIMULASI KAMERA',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: _white, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: .8),
+        Flexible(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: _glass,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _outline),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.circle,
+                  size: 7,
+                  color: cameraReady ? const Color(0xFF62E5AD) : const Color(0xFFFBBF24),
                 ),
-              ),
-            ],
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    statusLabel,
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: _white, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: .8),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         Expanded(
@@ -240,7 +303,7 @@ class _ScannerTop extends StatelessWidget {
                 toggled: flash,
                 child: _RoundIcon(
                   icon: flash ? Icons.flash_on_rounded : Icons.flash_off_rounded,
-                  label: 'Lampu kilat simulasi',
+                  label: flash ? 'Matikan lampu kilat' : 'Nyalakan lampu kilat',
                   active: flash,
                   onPressed: onFlash,
                 ),
@@ -275,73 +338,10 @@ class _RoundIcon extends StatelessWidget {
         padding: EdgeInsets.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         backgroundColor: active ? const Color(0xFF145E46) : _glass,
-        disabledBackgroundColor: _glass,
+        disabledBackgroundColor: const Color(0x8813251F),
         foregroundColor: active ? const Color(0xFFA4FFD0) : _white,
-        disabledForegroundColor: const Color(0xFFC0DBCC),
+        disabledForegroundColor: const Color(0x66C0DBCC),
         side: const BorderSide(color: _outline),
-      ),
-    );
-  }
-}
-
-class _ModeSwitch extends StatelessWidget {
-  const _ModeSwitch({required this.barcode, required this.onSelected});
-
-  final bool barcode;
-  final ValueChanged<bool>? onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 350),
-      child: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: const Color(0xEA0B1D17),
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: _outline),
-          boxShadow: const [BoxShadow(color: Color(0x44000000), blurRadius: 16, offset: Offset(0, 5))],
-        ),
-        child: Row(
-          children: [
-            Expanded(flex: 135, child: _option(false, Icons.document_scanner_outlined, 'Scan Komposisi (AI)')),
-            const SizedBox(width: 4),
-            Expanded(flex: 100, child: _option(true, Icons.qr_code_scanner_rounded, 'Scan Barcode')),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _option(bool value, IconData icon, String label) {
-    final selected = barcode == value;
-    return Semantics(
-      selected: selected,
-      child: FilledButton(
-        onPressed: onSelected == null ? null : () => onSelected!(value),
-        style: FilledButton.styleFrom(
-          backgroundColor: selected ? _mint : Colors.transparent,
-          disabledBackgroundColor: selected ? _mint : Colors.transparent,
-          foregroundColor: selected ? const Color(0xFF042C20) : const Color(0xFFCEE1D8),
-          disabledForegroundColor: selected ? const Color(0xFF042C20) : const Color(0xFFCEE1D8),
-          minimumSize: const Size(0, 43),
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 17),
-            const SizedBox(width: 5),
-            Flexible(
-              child: Text(
-                label,
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 11, height: 1.25, fontWeight: selected ? FontWeight.w800 : FontWeight.w700),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -379,11 +379,15 @@ class _FrameCaption extends StatelessWidget {
 
 class _ActionBar extends StatelessWidget {
   const _ActionBar({
-    required this.busy, required this.hasProfile, required this.onGallery, required this.onCapture, required this.onProfiles,
+    required this.busy,
+    required this.activeProfileCount,
+    required this.onGallery,
+    required this.onCapture,
+    required this.onProfiles,
   });
 
   final bool busy;
-  final bool hasProfile;
+  final int activeProfileCount;
   final VoidCallback? onGallery;
   final VoidCallback? onCapture;
   final VoidCallback? onProfiles;
@@ -474,10 +478,13 @@ class _ActionBar extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Mengecek', style: TextStyle(color: Color(0xFFC0DBCC), fontSize: 9, fontWeight: FontWeight.w600)),
                           Text(
-                            hasProfile ? '1 Profil' : '2 Profil',
-                            semanticsLabel: hasProfile ? null : '2 profil contoh',
+                            activeProfileCount > 0 ? 'Mengecek' : 'Profil',
+                            style: const TextStyle(color: Color(0xFFC0DBCC), fontSize: 9, fontWeight: FontWeight.w600),
+                          ),
+                          Text(
+                            activeProfileCount > 0 ? '$activeProfileCount Profil' : 'Atur Profil',
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(color: _white, fontSize: 11, fontWeight: FontWeight.w800),
                           ),
                         ],
@@ -543,9 +550,10 @@ class _ViewfinderPainter extends CustomPainter {
     final beam = Rect.fromLTRB(frame.left, y - 1, frame.right, y + 1);
     canvas.drawRect(
       beam,
-      Paint()..shader = const LinearGradient(
-        colors: [Color(0x006DFCC8), Color(0xDD91FFD8), Color(0x006DFCC8)],
-      ).createShader(beam),
+      Paint()
+        ..shader = const LinearGradient(
+          colors: [Color(0x006DFCC8), Color(0xDD91FFD8), Color(0x006DFCC8)],
+        ).createShader(beam),
     );
   }
 

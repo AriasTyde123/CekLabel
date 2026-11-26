@@ -74,29 +74,46 @@ class ScanProvider extends ChangeNotifier {
         _setStatus(ScanStatus.initial);
         return null;
       }
-      _setStatus(ScanStatus.recognizing);
-      _rawText = await _ocrService.recognizeText(path);
-      _setStatus(ScanStatus.analyzing);
-      final detected = _detectionService.detect(
-        rawText: _rawText,
-        dictionary: _dictionary,
-        selectedAllergens: _allergens,
-      );
-      final result = ScanResult.create(
-        rawText: _rawText,
-        detected: detected,
-        productName: _detectionService.guessProductName(_rawText),
-        crossContamination: _detectionService.detectCrossContamination(rawText: _rawText, dictionary: _dictionary),
-      );
-      _history.insert(0, result);
-      await _persist();
-      _setStatus(ScanStatus.success);
-      return result;
+      return await _analyzeImage(path);
     } on AppFailure catch (failure) {
       return _fail(failure.message);
     } catch (_) {
       return _fail('Terjadi kesalahan saat memindai. Coba lagi.');
     }
+  }
+
+  /// Runs OCR, ingredient detection, and history persistence on an already captured image file.
+  Future<ScanResult?> scanImageFile(String imagePath) async {
+    if (isBusy) return null;
+    _errorMessage = null;
+    try {
+      return await _analyzeImage(imagePath);
+    } on AppFailure catch (failure) {
+      return _fail(failure.message);
+    } catch (_) {
+      return _fail('Terjadi kesalahan saat memindai. Coba lagi.');
+    }
+  }
+
+  Future<ScanResult> _analyzeImage(String path) async {
+    _setStatus(ScanStatus.recognizing);
+    _rawText = await _ocrService.recognizeText(path);
+    _setStatus(ScanStatus.analyzing);
+    final detected = _detectionService.detect(
+      rawText: _rawText,
+      dictionary: _dictionary,
+      selectedAllergens: _allergens,
+    );
+    final result = ScanResult.create(
+      rawText: _rawText,
+      detected: detected,
+      productName: _detectionService.guessProductName(_rawText),
+      crossContamination: _detectionService.detectCrossContamination(rawText: _rawText, dictionary: _dictionary),
+    );
+    _history.insert(0, result);
+    await _persist();
+    _setStatus(ScanStatus.success);
+    return result;
   }
 
   /// Adds or removes a result from the Safe List. Returns false if storage failed.

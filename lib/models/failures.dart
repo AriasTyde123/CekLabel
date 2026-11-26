@@ -23,6 +23,10 @@ class OcrFailure extends AppFailure {
   const OcrFailure([super.message = 'Gagal membaca teks dari gambar. Coba lagi.']);
 }
 
+class CameraFailure extends AppFailure {
+  const CameraFailure([super.message = 'Kamera tidak dapat dibuka. Periksa izin kamera atau gunakan galeri.']);
+}
+
 class DictionaryLoadFailure extends AppFailure {
   const DictionaryLoadFailure([super.message = 'Gagal memuat kamus bahan.']);
 }
