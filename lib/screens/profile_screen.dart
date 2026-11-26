@@ -97,7 +97,17 @@ class ProfileScreen extends StatelessWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(automaticallyImplyLeading: !embedded, title: const Text('Profil Keluarga')),
+      appBar: AppBar(
+        automaticallyImplyLeading: !embedded,
+        title: const Text('Profil Keluarga'),
+        actions: [
+          IconButton(
+            tooltip: 'Kartu Darurat Alergi',
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.emergencyCard),
+            icon: const Icon(Icons.medical_services_outlined, color: Color(0xFFB91C1C)),
+          ),
+        ],
+      ),
       body: SafeArea(bottom: !embedded, child: body),
     );
   }

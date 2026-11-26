@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/family_profile.dart';
 import '../models/risk_level.dart';
 import '../providers/dictionary_provider.dart';
 import '../providers/profile_provider.dart';
@@ -53,12 +52,7 @@ class HomeScreen extends StatelessWidget {
     void startScan() => open(AppRoutes.scan);
     void openSafe() => onSelectTab != null ? onSelectTab!(HomeTab.safeList) : open(AppRoutes.safeList);
     void openHistory() => onSelectTab != null ? onSelectTab!(HomeTab.history) : open(AppRoutes.history);
-
-    final emergencyLines = [
-      for (final p in activeProfiles)
-        if (p.allergens.isNotEmpty)
-          '${p.name} (${p.sensitivity.label}): ${p.orderedAllergens.join(', ')}',
-    ];
+    void openEmergencyCard() => open(AppRoutes.emergencyCard);
 
     void exampleProfile() => _showPanel(
           context,
@@ -218,19 +212,9 @@ class HomeScreen extends StatelessWidget {
                         child: HomeQuickCard(
                           icon: Icons.medical_services_rounded,
                           title: 'Kartu Darurat Alergi',
-                          subtitle: 'Info alergi siap ditunjukkan',
+                          subtitle: 'Layar kontras tinggi (ID / EN)',
                           emergency: true,
-                          onTap: () => _showPanel(
-                            context,
-                            icon: Icons.medical_services_outlined,
-                            title: 'Kartu Darurat Alergi',
-                            message: emergencyLines.isEmpty
-                                ? 'Tambahkan profil keluarga beserta alergen untuk mengisi kartu darurat ini.'
-                                : 'Tunjukkan informasi ini kepada orang yang membantu atau petugas kesehatan.',
-                            details: emergencyLines.isEmpty ? null : emergencyLines.join('\n'),
-                            onEdit: openProfiles,
-                            actionLabel: 'Atur profil keluarga',
-                          ),
+                          onTap: openEmergencyCard,
                         ),
                       ),
                     ],

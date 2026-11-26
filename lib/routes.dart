@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'models/family_profile.dart';
 import 'models/scan_result.dart';
 import 'screens/dictionary_screen.dart';
+import 'screens/emergency_card_screen.dart';
 import 'screens/ingredient_detail_screen.dart';
 import 'screens/main_shell_screen.dart';
 import 'screens/profile_form_screen.dart';
@@ -21,6 +22,7 @@ class AppRoutes {
   static const String profileForm = '/preferences/form';
   static const String history = '/history';
   static const String safeList = '/safe-list';
+  static const String emergencyCard = '/emergency-card';
 
   static Route<dynamic> generate(RouteSettings settings) {
     final Widget page = switch (settings.name) {
@@ -36,6 +38,7 @@ class AppRoutes {
         ),
       history => const ScanCollectionScreen(),
       safeList => const ScanCollectionScreen(safeOnly: true),
+      emergencyCard => const EmergencyCardScreen(),
       _ => const MainShellScreen(),
     };
     return MaterialPageRoute<void>(builder: (_) => page, settings: settings);
