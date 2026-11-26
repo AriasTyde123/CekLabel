@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/risk_level.dart';
+import '../providers/profile_provider.dart';
 import '../providers/scan_provider.dart';
 import '../routes.dart';
 import '../widgets/empty_state.dart';
@@ -16,8 +16,10 @@ class ScanCollectionScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scan = context.watch<ScanProvider>();
+    context.watch<ProfileProvider>();
+    final source = safeOnly ? scan.savedResults : scan.history;
     final rows = [
-      for (final result in scan.history)
+      for (final result in source)
         HomeScanRow.result(
           result,
           context: context,
@@ -25,7 +27,6 @@ class ScanCollectionScreen extends StatelessWidget {
           onTap: () => Navigator.pushNamed(context, AppRoutes.scanResult, arguments: result),
         ),
     ];
-    final visible = safeOnly ? rows.where((row) => row.risk == RiskLevel.safe).toList() : rows;
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -46,34 +47,38 @@ class ScanCollectionScreen extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Text(
-                    'Daftar ini berdasarkan preferensi saat label dipindai. '
-                    'Selalu periksa label asli; hasil pindai bukan jaminan produk bebas alergen.',
+                    'Produk yang Anda tandai dengan ikon bookmark tersimpan di sini secara lokal. '
+                    'Selalu periksa ulang label kemasan karena komposisi produsen dapat berubah.',
                     style: TextStyle(color: scheme.onPrimaryContainer),
                   ),
                 ),
               ),
               const SizedBox(height: 16),
             ],
-            if (visible.isEmpty)
+            if (rows.isEmpty)
               EmptyState(
                 icon: safeOnly ? Icons.bookmark_border_rounded : Icons.history_rounded,
-                title: safeOnly ? 'Belum ada hasil berisiko rendah' : 'Belum ada pindaian',
-                message: 'Pindai label makanan untuk menambahkan hasil ke sesi ini.',
+                title: safeOnly ? 'Belum ada produk di Daftar Aman' : 'Belum ada pindaian',
+                message: safeOnly
+                    ? 'Ketuk ikon bookmark di halaman hasil pindaian untuk menyimpan produk favorit Anda.'
+                    : 'Pindai label makanan untuk menambahkan hasil ke riwayat perangkat ini.',
               )
             else
-              HomeScanRows(rows: visible),
+              HomeScanRows(rows: rows),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: () => Navigator.pushNamed(context, AppRoutes.scan),
               icon: const Icon(Icons.photo_camera_outlined),
               label: const Text('Pindai Label'),
             ),
-            if (safeOnly)
+            if (safeOnly) ...[
+              const SizedBox(height: 8),
               OutlinedButton.icon(
                 onPressed: () => Navigator.pushNamed(context, AppRoutes.dictionary),
                 icon: const Icon(Icons.search_rounded),
                 label: const Text('Buka Kamus Bahan'),
               ),
+            ],
           ],
         ),
       ),

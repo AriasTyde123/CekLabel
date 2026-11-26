@@ -11,6 +11,7 @@ class HomeScanRow {
     required this.risk,
     required this.onTap,
     this.image,
+    this.isSaved = false,
   });
 
   factory HomeScanRow.result(
@@ -25,10 +26,13 @@ class HomeScanRow {
       TimeOfDay.fromDateTime(date),
       alwaysUse24HourFormat: true,
     );
+    final timestamp = '${date.day} ${months[date.month - 1]}, $time';
+    final subtitle = result.brand.isNotEmpty ? '${result.brand} · $timestamp' : timestamp;
     return HomeScanRow(
-      title: 'Label makanan',
-      subtitle: '${date.day} ${months[date.month - 1]}, $time',
+      title: result.productName,
+      subtitle: subtitle,
       risk: result.totalDetected == 0 ? null : risk,
+      isSaved: result.isSaved,
       onTap: onTap,
     );
   }
@@ -37,6 +41,7 @@ class HomeScanRow {
   final String subtitle;
   final RiskLevel? risk;
   final String? image;
+  final bool isSaved;
   final VoidCallback onTap;
 }
 
@@ -109,7 +114,22 @@ class _ScanTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(row.title, style: const TextStyle(color: homeInk, fontSize: 12, fontWeight: FontWeight.w800)),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          row.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: homeInk, fontSize: 12, fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      if (row.isSaved) ...[
+                        const SizedBox(width: 4),
+                        const Icon(Icons.bookmark_rounded, size: 13, color: homeGreen),
+                      ],
+                    ],
+                  ),
                   const SizedBox(height: 2),
                   Text(row.subtitle, style: const TextStyle(color: homeMuted, fontSize: 10, fontWeight: FontWeight.w600)),
                   if (stackBadge) ...[const SizedBox(height: 4), badge],

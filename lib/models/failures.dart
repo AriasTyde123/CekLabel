@@ -7,12 +7,16 @@ abstract class AppFailure implements Exception {
   String toString() => message;
 }
 
-class PreferenceLoadFailure extends AppFailure {
-  const PreferenceLoadFailure([super.message = 'Gagal memuat preferensi.']);
+class ProfileLoadFailure extends AppFailure {
+  const ProfileLoadFailure([super.message = 'Gagal memuat profil keluarga.']);
 }
 
-class PreferenceSaveFailure extends AppFailure {
-  const PreferenceSaveFailure([super.message = 'Gagal menyimpan preferensi. Coba lagi.']);
+class ProfileSaveFailure extends AppFailure {
+  const ProfileSaveFailure([super.message = 'Gagal menyimpan profil. Coba lagi.']);
+}
+
+class HistoryFailure extends AppFailure {
+  const HistoryFailure([super.message = 'Gagal menyimpan riwayat pindaian.']);
 }
 
 class OcrFailure extends AppFailure {
@@ -21,4 +25,8 @@ class OcrFailure extends AppFailure {
 
 class DictionaryLoadFailure extends AppFailure {
   const DictionaryLoadFailure([super.message = 'Gagal memuat kamus bahan.']);
+}
+
+class AiFailure extends AppFailure {
+  const AiFailure([super.message = 'Layanan AI tidak tersedia.']);
 }

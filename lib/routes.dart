@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import 'models/family_profile.dart';
 import 'models/scan_result.dart';
 import 'screens/dictionary_screen.dart';
 import 'screens/ingredient_detail_screen.dart';
 import 'screens/main_shell_screen.dart';
-import 'screens/preference_screen.dart';
+import 'screens/profile_form_screen.dart';
+import 'screens/profile_screen.dart';
 import 'screens/scan_collection_screen.dart';
 import 'screens/scan_result_screen.dart';
 import 'screens/scan_screen.dart';
@@ -16,6 +18,7 @@ class AppRoutes {
   static const String dictionary = '/dictionary';
   static const String dictionaryDetail = '/dictionary/detail';
   static const String preferences = '/preferences';
+  static const String profileForm = '/preferences/form';
   static const String history = '/history';
   static const String safeList = '/safe-list';
 
@@ -27,7 +30,10 @@ class AppRoutes {
       dictionaryDetail => IngredientDetailScreen(
           ingredientId: settings.arguments is String ? settings.arguments as String : null,
         ),
-      preferences => const PreferenceScreen(),
+      preferences => const ProfileScreen(),
+      profileForm => ProfileFormScreen(
+          profile: settings.arguments is FamilyProfile ? settings.arguments as FamilyProfile : null,
+        ),
       history => const ScanCollectionScreen(),
       safeList => const ScanCollectionScreen(safeOnly: true),
       _ => const MainShellScreen(),

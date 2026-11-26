@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../models/risk_level.dart';
-import '../providers/preference_provider.dart';
+import '../providers/profile_provider.dart';
 import '../providers/scan_provider.dart';
 import '../routes.dart';
 import '../widgets/scanner_view.dart';
@@ -22,7 +22,8 @@ class _ScanScreenState extends State<ScanScreen> {
   @override
   Widget build(BuildContext context) {
     final scan = context.watch<ScanProvider>();
-    final profile = context.watch<PreferenceProvider>().savedUserName;
+    final activeProfiles = context.watch<ProfileProvider>().activeProfiles;
+    final profileNames = activeProfiles.map((p) => p.name).join(', ');
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
@@ -35,7 +36,7 @@ class _ScanScreenState extends State<ScanScreen> {
           barcode: _barcode,
           flash: _flash,
           busy: scan.isBusy,
-          hasProfile: profile.isNotEmpty,
+          hasProfile: activeProfiles.isNotEmpty,
           hint: scan.isBusy
               ? _busyMessage(scan.status)
               : _barcode
@@ -56,9 +57,9 @@ class _ScanScreenState extends State<ScanScreen> {
           onProfiles: () => _showInfo(
             icon: Icons.group_outlined,
             title: 'Profil yang dicek',
-            message: profile.isEmpty
-                ? 'Anak dan Ayah adalah contoh tampilan. Tambahkan profil di pengaturan untuk memakai preferensi alergen Anda.'
-                : 'Pemindaian memakai preferensi alergen dari profil $profile.',
+            message: activeProfiles.isEmpty
+                ? 'Belum ada profil aktif. Tambahkan profil di tab Profil untuk memakai preferensi alergen keluarga Anda.'
+                : 'Pemindaian memakai preferensi dari ${activeProfiles.length} profil aktif: $profileNames.',
           ),
           onRetry: scan.reset,
         ),

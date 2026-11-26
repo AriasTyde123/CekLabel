@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../routes.dart';
 import '../widgets/home_cards.dart';
 import 'home_screen.dart';
-import 'preference_screen.dart';
+import 'profile_screen.dart';
 import 'scan_collection_screen.dart';
 
 class MainShellScreen extends StatefulWidget {
@@ -59,7 +59,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
           ),
           const ScanCollectionScreen(embedded: true),
           const ScanCollectionScreen(safeOnly: true, embedded: true),
-          const PreferenceScreen(embedded: true),
+          const ProfileScreen(embedded: true),
         ],
       ),
       bottomNavigationBar: HomeNav(

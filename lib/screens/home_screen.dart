@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/family_profile.dart';
 import '../models/risk_level.dart';
 import '../providers/dictionary_provider.dart';
-import '../providers/preference_provider.dart';
+import '../providers/profile_provider.dart';
 import '../providers/scan_provider.dart';
 import '../routes.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/home_cards.dart';
 import '../widgets/home_scan_rows.dart';
 import '../widgets/loading_indicator.dart';
+import '../widgets/profile_avatar.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key, this.onSelectTab, this.scrollController});
@@ -20,7 +22,7 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dictionary = context.watch<DictionaryProvider>();
-    final preference = context.watch<PreferenceProvider>();
+    final profileProvider = context.watch<ProfileProvider>();
     final scan = context.watch<ScanProvider>();
 
     if (dictionary.status == DictionaryStatus.loading || dictionary.status == DictionaryStatus.initial) {
@@ -37,21 +39,34 @@ class HomeScreen extends StatelessWidget {
       );
     }
 
-    final name = preference.savedUserName;
-    final allergens = preference.savedAllergens;
+    final activeProfiles = profileProvider.activeProfiles;
+    final allProfiles = profileProvider.profiles;
+    final primaryName = activeProfiles.isNotEmpty
+        ? activeProfiles.first.name
+        : (allProfiles.isNotEmpty ? allProfiles.first.name : '');
     final activeScrollController = scrollController ?? PrimaryScrollController.maybeOf(context);
     final history = scan.history;
+
     void open(String route) => Navigator.pushNamed(context, route);
-    void editProfile() => onSelectTab != null ? onSelectTab!(HomeTab.profile) : open(AppRoutes.preferences);
+    void openProfiles() => onSelectTab != null ? onSelectTab!(HomeTab.profile) : open(AppRoutes.preferences);
+    void addProfile() => open(AppRoutes.profileForm);
     void startScan() => open(AppRoutes.scan);
     void openSafe() => onSelectTab != null ? onSelectTab!(HomeTab.safeList) : open(AppRoutes.safeList);
     void openHistory() => onSelectTab != null ? onSelectTab!(HomeTab.history) : open(AppRoutes.history);
+
+    final emergencyLines = [
+      for (final p in activeProfiles)
+        if (p.allergens.isNotEmpty)
+          '${p.name} (${p.sensitivity.label}): ${p.orderedAllergens.join(', ')}',
+    ];
+
     void exampleProfile() => _showPanel(
           context,
           icon: Icons.group_outlined,
           title: 'Profil keluarga contoh',
-          message: 'Anak dan Ayah adalah contoh tampilan. Pemindaian hanya memakai alergen dari profil yang Anda atur.',
-          onEdit: editProfile,
+          message: 'Anak dan Ayah adalah contoh tampilan. Tambahkan profil keluarga agar hasil pindaian sesuai alergi Anda.',
+          onEdit: addProfile,
+          actionLabel: 'Tambah profil',
         );
     void exampleScan() => _showPanel(
           context,
@@ -84,16 +99,23 @@ class HomeScreen extends StatelessWidget {
                               Text(
                                 'CEKLABEL',
                                 style: TextStyle(
-                                  color: homeGreen, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.4,
+                                  color: homeGreen,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.4,
                                 ),
                               ),
                             ],
                           ),
                           const SizedBox(height: 5),
                           Text(
-                            'Halo, ${name.isEmpty ? 'Bunda' : name}!',
+                            'Halo, ${primaryName.isEmpty ? 'Bunda' : primaryName}!',
                             style: const TextStyle(
-                              color: homeInk, fontSize: 31, height: 1.16, fontWeight: FontWeight.w800, letterSpacing: -1.6,
+                              color: homeInk,
+                              fontSize: 31,
+                              height: 1.16,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -1.6,
                             ),
                           ),
                         ],
@@ -101,20 +123,15 @@ class HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(width: 12),
                     IconButton.outlined(
-                      tooltip: 'Notifikasi',
-                      onPressed: () => _showPanel(
-                        context,
-                        icon: Icons.notifications_none_rounded,
-                        title: 'Notifikasi',
-                        message: 'Belum ada notifikasi baru.',
-                      ),
+                      tooltip: 'Kamus bahan',
+                      onPressed: () => open(AppRoutes.dictionary),
                       style: IconButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: homeInk,
                         side: const BorderSide(color: homeBorder),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
-                      icon: const Icon(Icons.notifications_none_rounded),
+                      icon: const Icon(Icons.menu_book_rounded),
                     ),
                   ],
                 ),
@@ -123,7 +140,11 @@ class HomeScreen extends StatelessWidget {
                   children: [
                     const Expanded(child: _SectionTitle('Profil Keluarga')),
                     const SizedBox(width: 6),
-                    _CaptionTag(name.isEmpty ? 'Contoh profil' : '1 profil aktif'),
+                    _CaptionTag(
+                      allProfiles.isEmpty
+                          ? 'Contoh profil'
+                          : '${activeProfiles.length} profil aktif',
+                    ),
                   ],
                 ),
                 const SizedBox(height: 9),
@@ -131,7 +152,7 @@ class HomeScreen extends StatelessWidget {
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      if (name.isEmpty) ...[
+                      if (allProfiles.isEmpty) ...[
                         HomeProfileChip(
                           title: 'Anak',
                           detail: 'Alergi Susu',
@@ -146,12 +167,20 @@ class HomeScreen extends StatelessWidget {
                           onTap: exampleProfile,
                         ),
                       ] else
-                        HomeProfileChip(title: name, detail: '${allergens.length} alergen', onTap: editProfile),
-                      const SizedBox(width: 7),
+                        for (final profile in activeProfiles.isNotEmpty ? activeProfiles : allProfiles) ...[
+                          HomeProfileChip(
+                            title: profile.name,
+                            detail: profile.summary,
+                            image: ProfileAvatar.imageFor(profile.role),
+                            onTap: openProfiles,
+                          ),
+                          const SizedBox(width: 7),
+                        ],
+                      if (allProfiles.isEmpty) const SizedBox(width: 7),
                       OutlinedButton.icon(
-                        onPressed: editProfile,
-                        icon: Icon(name.isEmpty ? Icons.add_rounded : Icons.edit_outlined, size: 17),
-                        label: Text(name.isEmpty ? 'Tambah' : 'Atur'),
+                        onPressed: addProfile,
+                        icon: const Icon(Icons.add_rounded, size: 17),
+                        label: const Text('Tambah'),
                         style: OutlinedButton.styleFrom(
                           backgroundColor: Colors.white,
                           foregroundColor: homeGreen,
@@ -178,7 +207,9 @@ class HomeScreen extends StatelessWidget {
                         child: HomeQuickCard(
                           icon: Icons.bookmark_rounded,
                           title: 'Daftar Aman',
-                          subtitle: 'Hasil cek berisiko rendah',
+                          subtitle: scan.savedResults.isEmpty
+                              ? 'Produk aman tersimpan'
+                              : '${scan.savedResults.length} produk tersimpan',
                           onTap: openSafe,
                         ),
                       ),
@@ -193,11 +224,12 @@ class HomeScreen extends StatelessWidget {
                             context,
                             icon: Icons.medical_services_outlined,
                             title: 'Kartu Darurat Alergi',
-                            message: allergens.isEmpty
-                                ? 'Tambahkan nama dan alergen di preferensi untuk mengisi kartu ini.'
+                            message: emergencyLines.isEmpty
+                                ? 'Tambahkan profil keluarga beserta alergen untuk mengisi kartu darurat ini.'
                                 : 'Tunjukkan informasi ini kepada orang yang membantu atau petugas kesehatan.',
-                            details: allergens.isEmpty ? null : '$name\nAlergen: ${allergens.join(', ')}',
-                            onEdit: editProfile,
+                            details: emergencyLines.isEmpty ? null : emergencyLines.join('\n'),
+                            onEdit: openProfiles,
+                            actionLabel: 'Atur profil keluarga',
                           ),
                         ),
                       ),
@@ -286,7 +318,7 @@ class HomeScreen extends StatelessWidget {
               onHistory: openHistory,
               onScan: startScan,
               onSafe: openSafe,
-              onProfile: editProfile,
+              onProfile: openProfiles,
             ),
     );
   }
@@ -327,6 +359,7 @@ void _showPanel(
   required String message,
   String? details,
   VoidCallback? onEdit,
+  String actionLabel = 'Atur profil',
 }) {
   showModalBottomSheet<void>(
     context: context,
@@ -366,7 +399,7 @@ void _showPanel(
                   Navigator.pop(sheetContext);
                   onEdit();
                 },
-                child: const Text('Atur preferensi'),
+                child: Text(actionLabel),
               ),
             ],
           ],

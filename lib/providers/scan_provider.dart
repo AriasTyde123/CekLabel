@@ -1,37 +1,67 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/failures.dart';
+import '../models/family_profile.dart';
 import '../models/ingredient.dart';
 import '../models/risk_level.dart';
 import '../models/scan_result.dart';
 import '../services/detection_service.dart';
+import '../services/history_service.dart';
 import '../services/ocr_service.dart';
 
 class ScanProvider extends ChangeNotifier {
-  ScanProvider(this._ocrService, this._detectionService);
+  ScanProvider(this._ocrService, this._detectionService, [HistoryService? historyService])
+      : _historyService = historyService ?? HistoryService();
 
   final OcrService _ocrService;
   final DetectionService _detectionService;
+  final HistoryService _historyService;
 
   List<Ingredient> _dictionary = const [];
-  Set<String> _allergens = const {};
+  List<FamilyProfile> _profiles = const [];
 
   ScanStatus _status = ScanStatus.initial;
   String _rawText = '';
-  final List<ScanResult> _history = [];
+  List<ScanResult> _history = [];
   String? _errorMessage;
+  String? _storageError;
 
   ScanStatus get status => _status;
   String get rawText => _rawText;
   List<ScanResult> get history => List.unmodifiable(_history);
+  List<ScanResult> get savedResults => List.unmodifiable(_history.where((r) => r.isSaved));
   String? get errorMessage => _errorMessage;
+
+  /// Last persistence error (history keeps working in memory).
+  String? get storageError => _storageError;
 
   bool get isBusy =>
       _status == ScanStatus.pickingImage || _status == ScanStatus.recognizing || _status == ScanStatus.analyzing;
 
-  void updateDependencies(List<Ingredient> dictionary, Set<String> allergens) {
+  Set<String> get _allergens => {for (final profile in _profiles) ...profile.allergens};
+
+  void updateDependencies(List<Ingredient> dictionary, List<FamilyProfile> activeProfiles) {
     _dictionary = dictionary;
-    _allergens = allergens;
+    _profiles = activeProfiles;
+  }
+
+  ScanResult? findById(String id) {
+    for (final result in _history) {
+      if (result.id == id) return result;
+    }
+    return null;
+  }
+
+  Future<void> loadHistory() async {
+    try {
+      final loaded = await _historyService.load();
+      final known = _history.map((r) => r.id).toSet();
+      _history = [..._history, ...loaded.where((r) => !known.contains(r.id))];
+      _storageError = null;
+    } on AppFailure catch (failure) {
+      _storageError = failure.message;
+    }
+    notifyListeners();
   }
 
   Future<ScanResult?> scan(ScanSource source) async {
@@ -52,8 +82,14 @@ class ScanProvider extends ChangeNotifier {
         dictionary: _dictionary,
         selectedAllergens: _allergens,
       );
-      final result = ScanResult.create(rawText: _rawText, detected: detected);
+      final result = ScanResult.create(
+        rawText: _rawText,
+        detected: detected,
+        productName: _detectionService.guessProductName(_rawText),
+        crossContamination: _detectionService.detectCrossContamination(rawText: _rawText, dictionary: _dictionary),
+      );
       _history.insert(0, result);
+      await _persist();
       _setStatus(ScanStatus.success);
       return result;
     } on AppFailure catch (failure) {
@@ -63,24 +99,48 @@ class ScanProvider extends ChangeNotifier {
     }
   }
 
+  /// Adds or removes a result from the Safe List. Returns false if storage failed.
+  Future<bool> toggleSaved(String id) async {
+    final result = findById(id);
+    if (result == null) return false;
+    return _replace(result.copyWith(isSaved: !result.isSaved));
+  }
+
+  Future<bool> updateProductInfo(String id, {required String productName, required String brand}) async {
+    final result = findById(id);
+    if (result == null) return false;
+    final name = productName.trim();
+    return _replace(result.copyWith(productName: name.isEmpty ? defaultProductName : name, brand: brand.trim()));
+  }
+
   void reset() {
     _errorMessage = null;
     _setStatus(ScanStatus.initial);
   }
 
-  ScanSummary summarize(ScanResult result) {
-    final danger = result.detectedIngredients.where((item) => item.riskLevel == RiskLevel.danger).toList();
-    final risky = result.dangerCount + result.cautionCount;
-    final groups = danger.map((item) => item.allergenGroup).whereType<String>().toSet().toList();
-    return ScanSummary(
-      totalDetected: result.totalDetected,
-      dangerCount: result.dangerCount,
-      cautionCount: result.cautionCount,
-      hasUserAllergen: danger.isNotEmpty,
-      topRisks: danger.take(3).toList(),
-      allergenGroups: groups,
-      message: risky == 0 ? 'Tidak ada bahan berisiko terdeteksi' : 'Ditemukan $risky bahan berisiko',
-    );
+  ScanSummary summarize(ScanResult result) => _detectionService.summarize(result, _profiles);
+
+  Future<bool> _replace(ScanResult updated) async {
+    final previous = _history;
+    _history = [for (final r in _history) r.id == updated.id ? updated : r];
+    notifyListeners();
+    final ok = await _persist();
+    if (!ok) {
+      _history = previous;
+      notifyListeners();
+    }
+    return ok;
+  }
+
+  Future<bool> _persist() async {
+    try {
+      await _historyService.save(_history);
+      _storageError = null;
+      return true;
+    } on AppFailure catch (failure) {
+      _storageError = failure.message;
+      return false;
+    }
   }
 
   ScanResult? _fail(String message) {
