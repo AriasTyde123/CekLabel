@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:ceklabel/models/failures.dart';
 import 'package:ceklabel/models/family_profile.dart';
 import 'package:ceklabel/models/ingredient.dart';
 import 'package:ceklabel/models/risk_level.dart';
@@ -16,15 +17,23 @@ import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _StubOcr implements OcrService {
-  _StubOcr(this.text);
+  _StubOcr(this.text, {this.failRecognize = false, this.pickedPath = 'label.jpg'});
 
   final String text;
+  final bool failRecognize;
+  final String pickedPath;
 
   @override
-  Future<String?> pickImage(ScanSource source) async => 'label.jpg';
+  Future<String?> pickImage(ScanSource source) async => pickedPath;
 
   @override
-  Future<String> recognizeText(String imagePath) async => text;
+  Future<String?> retrieveLostImagePath() async => null;
+
+  @override
+  Future<String> recognizeText(String imagePath) async {
+    if (failRecognize) throw const OcrFailure('Pemindai teks tidak tersedia di perangkat ini.');
+    return text;
+  }
 
   @override
   Future<void> dispose() async {}
@@ -141,6 +150,68 @@ void main() {
     expect(summary.overallLevel, RiskLevel.caution);
     expect(summary.hasSyubhat, isTrue);
     expect(summary.impacts.single.label, 'Waspada (Syubhat)');
+  });
+
+  test('ScanProvider uses Gemini Vision fallback when on-device ML Kit OCR is unavailable', () async {
+    final tempFile = File('${Directory.systemTemp.path}/ceklabel_vision_test.jpg');
+    tempFile.writeAsBytesSync([0xFF, 0xD8, 0xFF, 0xE0]);
+    addTearDown(() {
+      if (tempFile.existsSync()) tempFile.deleteSync();
+    });
+
+    final client = MockClient((request) async {
+      final reqJson = jsonDecode(request.body) as Map<String, dynamic>;
+      final parts = reqJson['contents'][0]['parts'] as List;
+      expect(parts.first['inlineData']['mimeType'], 'image/jpeg');
+
+      final responsePayload = {
+        'candidates': [
+          {
+            'content': {
+              'parts': [
+                {
+                  'text': jsonEncode({
+                    'extractedText': 'Susu Cokelat\nKomposisi: Susu Bubuk, Gula',
+                    'productName': 'Susu Cokelat',
+                    'brand': 'Segar',
+                    'ingredients': [
+                      {
+                        'name': 'Susu',
+                        'matchedKeyword': 'susu bubuk',
+                        'category': 'allergen',
+                        'allergenGroup': 'Susu',
+                        'isNonHalal': false,
+                        'description': 'Mengandung protein susu.',
+                      },
+                    ],
+                    'crossContamination': null,
+                  }),
+                },
+              ],
+            },
+          },
+        ],
+      };
+      return http.Response(jsonEncode(responsePayload), 200);
+    });
+
+    final aiService = AiAnalysisService(client: client, apiKey: 'demo-key');
+    final scanProvider = ScanProvider(
+      _StubOcr('', failRecognize: true, pickedPath: tempFile.path),
+      DetectionService(),
+      HistoryService(),
+      aiService,
+    );
+    addTearDown(scanProvider.dispose);
+
+    const profile = FamilyProfile(id: 'p1', name: 'Anak', role: 'Anak', allergens: {'Susu'});
+    scanProvider.updateDependencies(dictionary, const [profile]);
+
+    final result = await scanProvider.scan(ScanSource.gallery);
+    expect(result, isNotNull);
+    expect(result!.isOfflineMode, isFalse);
+    expect(result.productName, 'Susu Cokelat');
+    expect(result.detectedIngredients.single.allergenGroup, 'Susu');
   });
 }
 

@@ -1,7 +1,10 @@
-# Keep Google ML Kit Text Recognition, VisionKit, and Flutter plugin classes in R8 release builds
+# Keep Google ML Kit, ComponentRegistrar (reflection), VisionKit, and Flutter plugin classes in R8 release builds
+-keep class * implements com.google.firebase.components.ComponentRegistrar { *; }
+-keep class com.google.firebase.components.** { *; }
 -keep class com.google.mlkit.** { *; }
 -keep class com.google.android.gms.internal.mlkit_vision_text_common.** { *; }
 -keep class com.google.android.gms.internal.mlkit_vision_common.** { *; }
+-keep class com.google.android.gms.internal.mlkit_common.** { *; }
 -keep class com.google.android.libraries.vision.visionkit.** { *; }
 -keep class com.google.android.odml.** { *; }
 -keep class com.google_mlkit_text_recognition.** { *; }
@@ -18,3 +21,4 @@
 -dontwarn com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions$Builder
 -dontwarn com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions
 -dontwarn com.google.android.libraries.vision.visionkit.**
+-dontwarn com.google.firebase.components.**

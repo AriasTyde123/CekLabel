@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 
 import '../models/failures.dart';
@@ -103,13 +105,47 @@ class ScanProvider extends ChangeNotifier {
     }
   }
 
+  /// Recovers a gallery/camera image if Android killed the activity while picking.
+  Future<ScanResult?> recoverLostScan() async {
+    if (isBusy) return null;
+    final lostPath = await _ocrService.retrieveLostImagePath();
+    if (lostPath == null) return null;
+    return scanImageFile(lostPath);
+  }
+
   Future<ScanResult> _analyzeImage(String path) async {
     _setStatus(ScanStatus.recognizing);
-    _rawText = await _ocrService.recognizeText(path);
+    final ai = _aiService;
+    String? recognizedText;
+    OcrFailure? ocrFailure;
+
+    try {
+      recognizedText = await _ocrService.recognizeText(path);
+    } on OcrFailure catch (failure) {
+      ocrFailure = failure;
+    }
+
+    if (recognizedText == null) {
+      // Safety net: if on-device ML Kit OCR is unavailable on a device, use Gemini Vision when online.
+      final canUseVision = ai != null &&
+          ai.hasApiKey &&
+          !(ocrFailure?.message.startsWith('Teks tidak terbaca') ?? false);
+      if (canUseVision) {
+        final visionResult = await _tryAnalyzeImageDirectly(path, ai);
+        if (visionResult != null) {
+          _history.insert(0, visionResult);
+          await _persist();
+          _setStatus(ScanStatus.success);
+          return visionResult;
+        }
+      }
+      throw ocrFailure ?? const OcrFailure();
+    }
+
+    _rawText = recognizedText;
     _setStatus(ScanStatus.analyzing);
 
     ScanResult? result;
-    final ai = _aiService;
     if (ai != null && ai.hasApiKey) {
       try {
         final output = await ai.analyze(
@@ -148,6 +184,41 @@ class ScanProvider extends ChangeNotifier {
     await _persist();
     _setStatus(ScanStatus.success);
     return result;
+  }
+
+  Future<ScanResult?> _tryAnalyzeImageDirectly(String path, AiAnalysisService ai) async {
+    try {
+      final file = File(path);
+      if (!await file.exists()) return null;
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) return null;
+      _setStatus(ScanStatus.analyzing);
+      final lower = path.toLowerCase();
+      final mimeType = lower.endsWith('.png')
+          ? 'image/png'
+          : lower.endsWith('.webp')
+              ? 'image/webp'
+              : 'image/jpeg';
+      final output = await ai.analyzeImage(
+        imageBytes: bytes,
+        mimeType: mimeType,
+        dictionary: _dictionary,
+        selectedAllergens: _allergens,
+        avoidSyubhat: _avoidSyubhat,
+      );
+      if (output.extractedText.isEmpty && output.ingredients.isEmpty) return null;
+      _rawText = output.extractedText.isEmpty ? 'Dianalisis dari gambar' : output.extractedText;
+      return ScanResult.create(
+        rawText: _rawText,
+        detected: output.ingredients,
+        productName: output.productName,
+        brand: output.brand,
+        crossContamination: output.crossContamination,
+        isOfflineMode: false,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Adds or removes a result from the Safe List. Returns false if storage failed.

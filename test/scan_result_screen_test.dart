@@ -27,6 +27,9 @@ class _StubOcrService implements OcrService {
   Future<String?> pickImage(ScanSource source) async => 'label.jpg';
 
   @override
+  Future<String?> retrieveLostImagePath() async => null;
+
+  @override
   Future<String> recognizeText(String imagePath) async => text;
 
   @override

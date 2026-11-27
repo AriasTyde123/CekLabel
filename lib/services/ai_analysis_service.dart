@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -17,12 +18,14 @@ class AiAnalysisOutput {
     required this.brand,
     required this.ingredients,
     required this.crossContamination,
+    this.extractedText = '',
   });
 
   final String productName;
   final String brand;
   final List<DetectedIngredient> ingredients;
   final CrossContamination? crossContamination;
+  final String extractedText;
 }
 
 /// Analyzes raw OCR label text via Gemini Structured JSON Output.
@@ -96,6 +99,75 @@ class AiAnalysisService {
       return _parseOutput(
         data,
         rawText: rawText,
+        dictionary: dictionary,
+        selectedAllergens: selectedAllergens,
+        avoidSyubhat: avoidSyubhat,
+      );
+    } on AiFailure {
+      rethrow;
+    } catch (_) {
+      throw const AiFailure('Format hasil analisis AI tidak valid.');
+    }
+  }
+
+  /// Multimodal fallback: reads and analyzes a label image directly when on-device ML Kit OCR is unavailable.
+  Future<AiAnalysisOutput> analyzeImage({
+    required Uint8List imageBytes,
+    required String mimeType,
+    required List<Ingredient> dictionary,
+    required Set<String> selectedAllergens,
+    required bool avoidSyubhat,
+  }) async {
+    if (!hasApiKey) throw const AiFailure('API key Gemini belum dikonfigurasi.');
+
+    final uri = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent');
+    final body = {
+      'contents': [
+        {
+          'role': 'user',
+          'parts': [
+            {
+              'inlineData': {
+                'mimeType': mimeType,
+                'data': base64Encode(imageBytes),
+              },
+            },
+            {'text': _imagePrompt()},
+          ],
+        },
+      ],
+      'generationConfig': {
+        'temperature': 0.1,
+        'responseMimeType': 'application/json',
+        'responseSchema': _imageSchema,
+      },
+    };
+
+    final http.Response response;
+    try {
+      response = await _httpClient
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json', 'x-goog-api-key': _apiKey},
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 20));
+    } catch (_) {
+      throw const AiFailure('Tidak dapat terhubung ke layanan AI.');
+    }
+
+    if (response.statusCode != 200) {
+      throw AiFailure('Layanan AI menolak permintaan (${response.statusCode}).');
+    }
+
+    try {
+      final outer = jsonDecode(response.body) as Map<String, dynamic>;
+      final text = outer['candidates'][0]['content']['parts'][0]['text'] as String;
+      final data = jsonDecode(text) as Map<String, dynamic>;
+      final extracted = (data['extractedText'] as String?)?.trim() ?? '';
+      return _parseOutput(
+        data,
+        rawText: extracted,
         dictionary: dictionary,
         selectedAllergens: selectedAllergens,
         avoidSyubhat: avoidSyubhat,
@@ -187,6 +259,7 @@ class AiAnalysisService {
       brand: brand,
       ingredients: ingredients,
       crossContamination: cross,
+      extractedText: rawText,
     );
   }
 
@@ -264,6 +337,63 @@ class AiAnalysisService {
       },
     },
     'required': ['productName', 'brand', 'ingredients'],
+  };
+
+  String _imagePrompt() {
+    return 'Kamu adalah ahli keamanan pangan dan penerjemah label komposisi makanan untuk aplikasi CekLabel di Indonesia.\n'
+        'Baca teks komposisi makanan dari foto kemasan ini, lalu keluarkan JSON terstruktur.\n'
+        'Tugasmu:\n'
+        '1. Tulis transkripsi teks komposisi yang terbaca pada gambar ke "extractedText".\n'
+        '2. Tebak "productName" dan "brand" jika terlihat di kemasan, jika tidak kosongkan ("").\n'
+        '3. Daftarkan bahan komposisi utama ke array "ingredients" (JANGAN masukkan bahan yang hanya muncul di kalimat peringatan "dapat mengandung / may contain").\n'
+        '   Untuk tiap bahan:\n'
+        '   - "name": nama bahan bersih dalam Bahasa Indonesia.\n'
+        '   - "matchedKeyword": teks bahan dari label.\n'
+        '   - "category": salah satu dari: "allergen", "sugarAlias", "additive", "preservative", "coloring", "sweetener", "syubhat", "other".\n'
+        '   - "isNonHalal": true HANYA jika jelas non-halal (babi, lard, pork, alkohol, mirin, angciu, rhum, wine), false untuk lainnya.\n'
+        '   - "allergenGroup": salah satu dari "Kacang", "Susu", "Gluten", "Telur", "Udang", "Kedelai", atau null.\n'
+        '   - "description": penjelasan singkat 1-2 kalimat dalam bahasa Indonesia awam.\n'
+        '4. Jika ada kalimat kontaminasi silang ("dapat mengandung", "diproduksi di fasilitas yang sama", "may contain"), isi "crossContamination". Jika tidak ada, isi null.';
+  }
+
+  static const Map<String, Object> _imageSchema = {
+    'type': 'OBJECT',
+    'properties': {
+      'extractedText': {'type': 'STRING'},
+      'productName': {'type': 'STRING'},
+      'brand': {'type': 'STRING'},
+      'ingredients': {
+        'type': 'ARRAY',
+        'items': {
+          'type': 'OBJECT',
+          'properties': {
+            'name': {'type': 'STRING'},
+            'matchedKeyword': {'type': 'STRING'},
+            'category': {
+              'type': 'STRING',
+              'enum': ['allergen', 'sugarAlias', 'additive', 'preservative', 'coloring', 'sweetener', 'syubhat', 'other'],
+            },
+            'allergenGroup': {'type': 'STRING', 'nullable': true},
+            'isNonHalal': {'type': 'BOOLEAN'},
+            'description': {'type': 'STRING'},
+          },
+          'required': ['name', 'matchedKeyword', 'category', 'isNonHalal', 'description'],
+        },
+      },
+      'crossContamination': {
+        'type': 'OBJECT',
+        'nullable': true,
+        'properties': {
+          'allergenGroups': {
+            'type': 'ARRAY',
+            'items': {'type': 'STRING'},
+          },
+          'statement': {'type': 'STRING'},
+        },
+        'required': ['allergenGroups', 'statement'],
+      },
+    },
+    'required': ['extractedText', 'productName', 'brand', 'ingredients'],
   };
 
   void dispose() => _client?.close();

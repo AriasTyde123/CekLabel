@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
@@ -21,8 +22,31 @@ class OcrService {
         maxWidth: 2048,
       );
       return file?.path;
+    } on PlatformException catch (e) {
+      if (e.code == 'photo_access_denied') {
+        throw const OcrFailure('Izin galeri ditolak. Aktifkan izin foto di pengaturan perangkat.');
+      }
+      if (e.code == 'camera_access_denied') {
+        throw const OcrFailure('Izin kamera ditolak. Aktifkan izin kamera di pengaturan perangkat.');
+      }
+      if (e.code == 'already_active') {
+        throw const OcrFailure('Pemilih gambar sedang terbuka. Tunggu sebentar lalu coba lagi.');
+      }
+      throw const OcrFailure('Kamera atau galeri tidak dapat diakses. Periksa izin aplikasi.');
     } catch (_) {
       throw const OcrFailure('Kamera atau galeri tidak dapat diakses. Periksa izin aplikasi.');
+    }
+  }
+
+  /// Recovers an image path if Android killed the activity while the gallery/camera picker was open.
+  Future<String?> retrieveLostImagePath() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return null;
+    try {
+      final response = await _picker.retrieveLostData();
+      if (response.isEmpty) return null;
+      return response.file?.path;
+    } catch (_) {
+      return null;
     }
   }
 

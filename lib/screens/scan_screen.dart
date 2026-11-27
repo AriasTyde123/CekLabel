@@ -26,6 +26,7 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
   bool _ownsCamera = false;
   bool _cameraLoading = true;
   bool _capturing = false;
+  bool _pickingWithPicker = false;
   String? _cameraError;
 
   @override
@@ -35,13 +36,15 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
     _ownsCamera = widget.cameraService == null;
     _camera = widget.cameraService ?? CameraService();
     _initCamera(updateInitialState: false);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _recoverLostScan());
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_pickingWithPicker) return;
     if (state == AppLifecycleState.inactive) {
       _camera.dispose();
-    } else if (state == AppLifecycleState.resumed && mounted) {
+    } else if (state == AppLifecycleState.resumed && mounted && ModalRoute.isCurrentOf(context) == true) {
       _initCamera();
     }
   }
@@ -53,6 +56,16 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
       _camera.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> _recoverLostScan() async {
+    if (!mounted) return;
+    final navigator = Navigator.of(context);
+    final result = await context.read<ScanProvider>().recoverLostScan();
+    if (result != null && mounted && ModalRoute.isCurrentOf(context) == true) {
+      await navigator.pushNamed(AppRoutes.scanResult, arguments: result);
+      if (mounted) _initCamera();
+    }
   }
 
   Future<void> _initCamera({bool updateInitialState = true}) async {
@@ -90,7 +103,7 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
 
   Future<void> _capture() async {
     final scanProvider = context.read<ScanProvider>();
-    if (_capturing || scanProvider.isBusy) return;
+    if (_capturing || _pickingWithPicker || scanProvider.isBusy) return;
 
     // If live camera preview is unavailable, fall back to system camera via image_picker.
     if (!_camera.isInitialized) {
@@ -106,7 +119,9 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       final result = await scanProvider.scanImageFile(path);
       if (result != null && mounted && ModalRoute.isCurrentOf(context) == true) {
-        navigator.pushNamed(AppRoutes.scanResult, arguments: result);
+        await _camera.dispose();
+        await navigator.pushNamed(AppRoutes.scanResult, arguments: result);
+        if (mounted) _initCamera();
       }
     } on CameraFailure catch (failure) {
       if (mounted) {
@@ -118,10 +133,28 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _scanWithPicker(ScanSource source) async {
+    final scanProvider = context.read<ScanProvider>();
+    if (_pickingWithPicker || _capturing || scanProvider.isBusy) return;
+
+    setState(() => _pickingWithPicker = true);
     final navigator = Navigator.of(context);
-    final result = await context.read<ScanProvider>().scan(source);
-    if (result != null && mounted && ModalRoute.isCurrentOf(context) == true) {
-      navigator.pushNamed(AppRoutes.scanResult, arguments: result);
+    // Release live camera cleanly before opening Android Photo Picker / system camera to avoid lifecycle races.
+    if (_ownsCamera && _camera.isInitialized) {
+      await _camera.dispose();
+    }
+
+    try {
+      final result = await scanProvider.scan(source);
+      if (result != null && mounted && ModalRoute.isCurrentOf(context) == true) {
+        await navigator.pushNamed(AppRoutes.scanResult, arguments: result);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _pickingWithPicker = false);
+        if (ModalRoute.isCurrentOf(context) == true && !_camera.isInitialized && _ownsCamera) {
+          _initCamera();
+        }
+      }
     }
   }
 
@@ -129,7 +162,7 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final scan = context.watch<ScanProvider>();
     final activeProfiles = context.watch<ProfileProvider>().activeProfiles;
-    final busy = _capturing || scan.isBusy;
+    final busy = _capturing || _pickingWithPicker || scan.isBusy;
 
     final String? displayError;
     final String? secondaryLabel;
@@ -270,7 +303,11 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
                             children: [
                               Text(
                                 '${profile.name} · ${profile.role}',
-                                style: const TextStyle(color: Color(0xFFF3FCF7), fontSize: 14, fontWeight: FontWeight.w700),
+                                style: const TextStyle(
+                                  color: Color(0xFFF3FCF7),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                               Text(
                                 profile.summary,

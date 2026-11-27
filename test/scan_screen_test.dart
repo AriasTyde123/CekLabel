@@ -66,12 +66,17 @@ class _FakeCameraService extends CameraService {
 
 class _StubOcrService implements OcrService {
   int pickCalls = 0;
+  ScanSource? lastSource;
 
   @override
   Future<String?> pickImage(ScanSource source) async {
     pickCalls++;
+    lastSource = source;
     return 'picked_label.jpg';
   }
+
+  @override
+  Future<String?> retrieveLostImagePath() async => null;
 
   @override
   Future<String> recognizeText(String imagePath) async =>
@@ -171,7 +176,23 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(ocr.pickCalls, 1);
+    expect(ocr.lastSource, ScanSource.camera);
     expect(find.text('Hasil Analisis'), findsOneWidget);
+  });
+
+  testWidgets('uploads image from gallery and navigates to ScanResultScreen', (tester) async {
+    final camera = _FakeCameraService();
+    final ocr = _StubOcrService();
+
+    await pumpScanner(tester, camera: camera, ocr: ocr);
+
+    await tester.tap(find.text('Galeri'));
+    await tester.pumpAndSettle();
+
+    expect(ocr.pickCalls, 1);
+    expect(ocr.lastSource, ScanSource.gallery);
+    expect(find.text('Hasil Analisis'), findsOneWidget);
+    expect(find.text('Biskuit Cokelat Krim'), findsOneWidget);
   });
 }
 
