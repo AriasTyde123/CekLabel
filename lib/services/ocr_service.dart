@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -35,6 +36,12 @@ class OcrService {
       return text;
     } on OcrFailure {
       rethrow;
+    } on PlatformException catch (e) {
+      final detail = (e.message ?? e.code).trim();
+      if (detail.isNotEmpty) {
+        throw OcrFailure('Gagal memindai teks ($detail). Coba foto ulang atau pilih dari Galeri.');
+      }
+      throw const OcrFailure('Pemindai teks tidak tersedia di perangkat ini.');
     } catch (_) {
       throw const OcrFailure('Pemindai teks tidak tersedia di perangkat ini.');
     }

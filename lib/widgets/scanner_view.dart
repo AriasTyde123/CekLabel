@@ -260,59 +260,52 @@ class _ScannerTop extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
+        _RoundIcon(icon: Icons.close_rounded, label: 'Tutup pemindai', onPressed: onClose),
+        const SizedBox(width: 8),
         Expanded(
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: _RoundIcon(icon: Icons.close_rounded, label: 'Tutup pemindai', onPressed: onClose),
-          ),
-        ),
-        Flexible(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: _glass,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: _outline),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.circle,
-                  size: 7,
-                  color: cameraReady ? const Color(0xFF62E5AD) : const Color(0xFFFBBF24),
-                ),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    statusLabel,
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: _white, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: .8),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        Expanded(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Semantics(
-                toggled: flash,
-                child: _RoundIcon(
-                  icon: flash ? Icons.flash_on_rounded : Icons.flash_off_rounded,
-                  label: flash ? 'Matikan lampu kilat' : 'Nyalakan lampu kilat',
-                  active: flash,
-                  onPressed: onFlash,
-                ),
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: _glass,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: _outline),
               ),
-              const SizedBox(width: 4),
-              _RoundIcon(icon: Icons.help_outline_rounded, label: 'Bantuan', onPressed: onHelp),
-            ],
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.circle,
+                    size: 7,
+                    color: cameraReady ? const Color(0xFF62E5AD) : const Color(0xFFFBBF24),
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      statusLabel,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: _white, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: .8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
+        const SizedBox(width: 8),
+        Semantics(
+          toggled: flash,
+          child: _RoundIcon(
+            icon: flash ? Icons.flash_on_rounded : Icons.flash_off_rounded,
+            label: flash ? 'Matikan lampu kilat' : 'Nyalakan lampu kilat',
+            active: flash,
+            onPressed: onFlash,
+          ),
+        ),
+        const SizedBox(width: 4),
+        _RoundIcon(icon: Icons.help_outline_rounded, label: 'Bantuan', onPressed: onHelp),
       ],
     );
   }
